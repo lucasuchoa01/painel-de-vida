@@ -8,12 +8,12 @@ export interface Task {
   userId: string
   title: string
   description?: string
-  date: string
+  date: string // ISO date string YYYY-MM-DD
   priority: Priority
   status: TaskStatus
   impact: TaskImpact
   reason?: SkipReason
-  notificationTime?: string
+  notificationTime?: string // HH:MM
   createdAt: number
   updatedAt: number
 }
@@ -52,7 +52,7 @@ export interface Direction {
 export interface DailyLog {
   id: string
   userId: string
-  date: string
+  date: string // YYYY-MM-DD
   good: string
   bad: string
   improve: string
