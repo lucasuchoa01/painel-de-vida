@@ -35,31 +35,30 @@ export function useTasks() {
   }, [user])
 
   const addTask = async (data: {
-    title: string
-    description?: string
-    date: string
-    priority: Priority
-    impact: TaskImpact
-    notificationTime?: string
-  }) => {
-    if (!user) return
-    const cleanData = Object.fromEntries(
-  Object.entries(data).filter(([, v]) => v !== undefined)
-)
-await addDoc(collection(db, 'tasks'), {
-  ...cleanData,
-  userId: user.uid,
-  status: 'pendente',
-  createdAt: Date.now(),
-  updatedAt: Date.now(),
-})
-
-  const completeTask = async (id: string) => {
-    await updateDoc(doc(db, 'tasks', id), {
-      status: 'concluida',
-      updatedAt: Date.now(),
-    })
+  title: string
+  description?: string
+  date: string
+  priority: Priority
+  impact: TaskImpact
+  notificationTime?: string
+}) => {
+  if (!user) return
+  const cleanData: Record<string, unknown> = {
+    title: data.title,
+    date: data.date,
+    priority: data.priority,
+    impact: data.impact,
   }
+  if (data.description) cleanData.description = data.description
+  if (data.notificationTime) cleanData.notificationTime = data.notificationTime
+  await addDoc(collection(db, 'tasks'), {
+    ...cleanData,
+    userId: user.uid,
+    status: 'pendente',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  })
+}
 
   const skipTask = async (id: string, reason: SkipReason) => {
     const task = tasks.find((t) => t.id === id)
