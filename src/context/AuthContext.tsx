@@ -1,50 +1,35 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  User,
-} from 'firebase/auth'
+import { createContext, useContext, useEffect, useState } from 'react'
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, User } from 'firebase/auth'
 import { auth } from '../firebase'
 
 interface AuthContextType {
   user: User | null
-  loading: boolean
-  login: (email: string, password: string) => Promise<void>
-  register: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u)
-      setLoading(false)
+    const unsub = onAuthStateChanged(auth, (u) => {
+      if (u) {
+        setUser(u)
+      } else {
+        signInWithEmailAndPassword(auth, 'lucasuchoa197@gmail.com', '64972201')
+          .then(({ user }) => setUser(user))
+          .catch(console.error)
+      }
     })
-    return unsubscribe
+    return unsub
   }, [])
 
-  const login = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password)
-  }
-
-  const register = async (email: string, password: string) => {
-    await createUserWithEmailAndPassword(auth, email, password)
-  }
-
-  const logout = async () => {
-    await signOut(auth)
-  }
+  const logout = () => signOut(auth)
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
-      {children}
+    <AuthContext.Provider value={{ user, logout }}>
+      {user ? children : null}
     </AuthContext.Provider>
   )
 }
