@@ -43,14 +43,16 @@ export function useTasks() {
     notificationTime?: string
   }) => {
     if (!user) return
-    await addDoc(collection(db, 'tasks'), {
-      ...data,
-      userId: user.uid,
-      status: 'pendente',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    })
-  }
+    const cleanData = Object.fromEntries(
+  Object.entries(data).filter(([, v]) => v !== undefined)
+)
+await addDoc(collection(db, 'tasks'), {
+  ...cleanData,
+  userId: user.uid,
+  status: 'pendente',
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+})
 
   const completeTask = async (id: string) => {
     await updateDoc(doc(db, 'tasks', id), {
