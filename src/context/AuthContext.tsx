@@ -13,12 +13,11 @@ const AuthContext = createContext<AuthContextType | null>(null)
 const SESSION_KEY = 'pdv_session_date'
 
 function getTodayString() {
-  return new Date().toISOString().slice(0, 10) // "2026-04-08"
+  return new Date().toISOString().slice(0, 10)
 }
 
 function isSessionValid() {
-  const saved = localStorage.getItem(SESSION_KEY)
-  return saved === getTodayString()
+  return localStorage.getItem(SESSION_KEY) === getTodayString()
 }
 
 function saveSession() {
@@ -37,9 +36,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u && isSessionValid()) {
         setUser(u)
+      } else if (u && !isSessionValid()) {
+        // Sessão expirou — faz logout silencioso
+        await signOut(auth)
+        setUser(null)
       } else {
-        if (u) await signOut(auth)
-        clearSession()
         setUser(null)
       }
       setReady(true)
@@ -48,11 +49,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const login = async (password: string) => {
-    const { user } = await signInWithEmailAndPassword(
-      auth, 'lucasuchoa197@gmail.com', password
-    )
+    // Salva sessão ANTES do signIn para o onAuthStateChanged já encontrar válida
     saveSession()
-    setUser(user)
+    try {
+      const { user } = await signInWithEmailAndPassword(
+        auth, 'lucasuchoa197@gmail.com', password
+      )
+      setUser(user)
+    } catch (e) {
+      clearSession()
+      throw e
+    }
   }
 
   const logout = async () => {
