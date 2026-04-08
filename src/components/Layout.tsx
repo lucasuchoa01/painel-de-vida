@@ -11,23 +11,42 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', width: '100%' }}>
       <nav style={{
-        width: 'var(--nav-w)', minWidth: 'var(--nav-w)',
-        background: 'var(--bg-2)', borderRight: '1px solid var(--border)',
-        display: 'flex', flexDirection: 'column',
-        padding: '24px 0', position: 'sticky', top: 0, height: '100vh',
+        width: 'var(--nav-w)',
+        minWidth: 'var(--nav-w)',
+        background: 'var(--bg-2)',
+        borderRight: '1px solid var(--border)',
+        display: 'flex',
+        flexDirection: 'column',
+        padding: '24px 0',
+        position: 'sticky',
+        top: 0,
+        height: '100vh',
       }}>
         <div style={{ padding: '0 20px 24px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 800, color: 'var(--amber)', letterSpacing: '-0.02em' }}>
+          <div style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '1.1rem',
+            fontWeight: 800,
+            color: 'var(--amber)',
+            letterSpacing: '-0.02em',
+          }}>
             PAINEL DE VIDA
           </div>
         </div>
         <div style={{ flex: 1, padding: '16px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
           {navItems.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.exact}
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.exact}
               style={({ isActive }) => ({
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '9px 12px', borderRadius: 'var(--radius-sm)',
-                textDecoration: 'none', fontSize: '0.88rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '9px 12px',
+                borderRadius: 'var(--radius-sm)',
+                textDecoration: 'none',
+                fontSize: '0.88rem',
                 fontWeight: isActive ? 600 : 400,
                 color: isActive ? 'var(--amber)' : 'var(--text-2)',
                 background: isActive ? 'var(--amber-dim)' : 'transparent',
