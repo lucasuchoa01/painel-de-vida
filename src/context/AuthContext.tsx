@@ -4,6 +4,7 @@ import { auth } from '../firebase'
 
 interface AuthContextType {
   user: User | null
+  login: (password: string) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -11,25 +12,28 @@ const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
-      if (u) {
-        setUser(u)
-      } else {
-        signInWithEmailAndPassword(auth, 'lucasuchoa197@gmail.com', '64972201')
-          .then(({ user }) => setUser(user))
-          .catch(console.error)
-      }
+      setUser(u)
+      setReady(true)
     })
     return unsub
   }, [])
 
+  const login = async (password: string) => {
+    const { user } = await signInWithEmailAndPassword(auth, 'lucasuchoa197@gmail.com', password)
+    setUser(user)
+  }
+
   const logout = () => signOut(auth)
 
+  if (!ready) return null
+
   return (
-    <AuthContext.Provider value={{ user, logout }}>
-      {user ? children : null}
+    <AuthContext.Provider value={{ user, login, logout }}>
+      {children}
     </AuthContext.Provider>
   )
 }
