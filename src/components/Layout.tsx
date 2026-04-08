@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 
 const navItems = [
@@ -8,8 +9,23 @@ const navItems = [
 ]
 
 export default function Layout({ children }: { children: React.ReactNode }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', width: '100%' }}>
+
+      {/* Overlay mobile */}
+      {menuOpen && (
+        <div
+          onClick={() => setMenuOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+            zIndex: 10, display: 'block',
+          }}
+        />
+      )}
+
+      {/* Sidebar */}
       <nav style={{
         width: 'var(--nav-w)',
         minWidth: 'var(--nav-w)',
@@ -18,17 +34,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         display: 'flex',
         flexDirection: 'column',
         padding: '24px 0',
-        position: 'sticky',
+        position: 'fixed',
         top: 0,
+        left: 0,
         height: '100vh',
+        zIndex: 20,
+        transform: menuOpen ? 'translateX(0)' : 'translateX(-100%)',
+        transition: 'transform 0.25s ease',
       }}>
         <div style={{ padding: '0 20px 24px', borderBottom: '1px solid var(--border)' }}>
           <div style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: '1.1rem',
-            fontWeight: 800,
-            color: 'var(--amber)',
-            letterSpacing: '-0.02em',
+            fontFamily: 'var(--font-display)', fontSize: '1.1rem',
+            fontWeight: 800, color: 'var(--amber)', letterSpacing: '-0.02em',
           }}>
             PAINEL DE VIDA
           </div>
@@ -39,14 +56,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               key={item.to}
               to={item.to}
               end={item.exact}
+              onClick={() => setMenuOpen(false)}
               style={({ isActive }) => ({
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '9px 12px',
-                borderRadius: 'var(--radius-sm)',
-                textDecoration: 'none',
-                fontSize: '0.88rem',
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '9px 12px', borderRadius: 'var(--radius-sm)',
+                textDecoration: 'none', fontSize: '0.88rem',
                 fontWeight: isActive ? 600 : 400,
                 color: isActive ? 'var(--amber)' : 'var(--text-2)',
                 background: isActive ? 'var(--amber-dim)' : 'transparent',
@@ -60,9 +74,37 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           ))}
         </div>
       </nav>
-      <main style={{ flex: 1, overflowY: 'auto', background: 'var(--bg)' }}>
-        {children}
-      </main>
+
+      {/* Conteúdo principal */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+
+        {/* Header mobile */}
+        <header style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '12px 16px', borderBottom: '1px solid var(--border)',
+          background: 'var(--bg-2)', position: 'sticky', top: 0, zIndex: 5,
+        }}>
+          <button
+            onClick={() => setMenuOpen(true)}
+            style={{
+              background: 'none', border: 'none', color: 'var(--amber)',
+              fontSize: '1.4rem', cursor: 'pointer', padding: 0, lineHeight: 1,
+            }}
+          >
+            ☰
+          </button>
+          <span style={{
+            fontFamily: 'var(--font-display)', fontSize: '1rem',
+            fontWeight: 800, color: 'var(--amber)',
+          }}>
+            PAINEL DE VIDA
+          </span>
+        </header>
+
+        <main style={{ flex: 1, overflowY: 'auto', background: 'var(--bg)' }}>
+          {children}
+        </main>
+      </div>
     </div>
   )
 }
