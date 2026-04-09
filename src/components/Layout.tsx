@@ -6,6 +6,7 @@ const navItems = [
   { to: '/limpar', label: 'Limpar a Cabeça', icon: '🗑' },
   { to: '/direcao', label: 'Direção', icon: '🧭' },
   { to: '/evolucao', label: 'Evolução', icon: '📈' },
+  { to: '/livre', label: 'Página Livre', icon: '📄' },
 ]
 
 const NAV_W = 200
