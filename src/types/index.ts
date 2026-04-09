@@ -64,3 +64,28 @@ export interface UserProfile {
   email: string
   displayName?: string
 }
+export type FreeSectionType = 'list' | 'text'
+
+export interface FreeSectionItem {
+  id: string
+  text: string
+  done: boolean
+}
+
+export interface FreeSection {
+  id: string
+  type: FreeSectionType
+  title: string
+  items: FreeSectionItem[]  // para tipo 'list'
+  content: string           // para tipo 'text'
+  order: number
+}
+
+export interface FreePage {
+  id: string
+  userId: string
+  title: string
+  sections: FreeSection[]
+  createdAt: number
+  updatedAt: number
+}
