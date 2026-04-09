@@ -209,26 +209,39 @@ export default function PaginaLivre() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {section.items.map((item) => (
-                    <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <input
-                        type="checkbox"
-                        checked={item.done}
-                        onChange={() => toggleItem(currentPage, section.id, item.id)}
-                        style={{ cursor: 'pointer', accentColor: 'var(--amber)' }}
-                      />
-                      <span style={{
-                        flex: 1, fontSize: '0.88rem', color: 'var(--text-2)',
-                        textDecoration: item.done ? 'line-through' : 'none',
-                        opacity: item.done ? 0.5 : 1,
-                      }}>
-                        {item.text}
-                      </span>
-                      <button
-                        onClick={() => removeItem(currentPage, section.id, item.id)}
-                        style={{ background: 'none', border: 'none', color: 'var(--text-3)', cursor: 'pointer', fontSize: '0.75rem' }}
-                      >✕</button>
-                    </div>
-                  ))}
+  <div key={item.id} style={{
+    display: 'flex', alignItems: 'center', gap: 10,
+    padding: '6px 8px', borderRadius: 'var(--radius-sm)',
+    background: item.done ? 'var(--bg-3)' : 'transparent',
+  }}>
+    <input
+      type="checkbox"
+      checked={item.done}
+      onChange={() => toggleItem(currentPage, section.id, item.id)}
+      style={{
+        width: 16, height: 16, minWidth: 16,
+        cursor: 'pointer', accentColor: 'var(--amber)',
+        margin: 0,
+      }}
+    />
+    <span style={{
+      flex: 1, fontSize: '0.88rem', color: 'var(--text-2)',
+      textDecoration: item.done ? 'line-through' : 'none',
+      opacity: item.done ? 0.5 : 1,
+    }}>
+      {item.text}
+    </span>
+    <button
+      onClick={() => removeItem(currentPage, section.id, item.id)}
+      style={{
+        background: 'none', border: 'none',
+        color: 'var(--text-3)', cursor: 'pointer',
+        fontSize: '0.75rem', padding: '0 4px',
+        opacity: 0.6,
+      }}
+    >✕</button>
+  </div>
+))}
                   {section.items.length === 0 && (
                     <div style={{ color: 'var(--text-3)', fontSize: '0.82rem' }}>Nenhum item ainda.</div>
                   )}
