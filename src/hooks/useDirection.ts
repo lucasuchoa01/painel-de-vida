@@ -1,12 +1,6 @@
 import { useState, useEffect } from 'react'
 import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  addDoc,
-  updateDoc,
-  doc,
+  collection, query, where, onSnapshot, addDoc, updateDoc, doc,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { Direction } from '../types'
@@ -35,6 +29,8 @@ export function useDirection() {
     idealSelf: string
     weeklyFocus: string[]
     values: string[]
+    currentIncome: string
+    shouldIncome: string
   }) => {
     if (!user) return
     if (direction?.id) {
