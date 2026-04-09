@@ -28,15 +28,17 @@ export default function DirectionBlock({ direction, onSave }: Props) {
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    if (direction) {
-      setLifeDirection(direction.lifeDirection ?? '')
-      setIdealSelf(direction.idealSelf ?? '')
-      setWeeklyFocus(direction.weeklyFocus ?? [])
-      setValues(direction.values ?? [])
-      setCurrentIncome((direction as any).currentIncome ?? [])
-      setShouldIncome((direction as any).shouldIncome ?? [])
-    }
-  }, [direction])
+  if (direction) {
+    setLifeDirection(direction.lifeDirection ?? '')
+    setIdealSelf(direction.idealSelf ?? '')
+    setWeeklyFocus(direction.weeklyFocus ?? [])
+    setValues(direction.values ?? [])
+    const ci = (direction as any).currentIncome
+    const si = (direction as any).shouldIncome
+    setCurrentIncome(Array.isArray(ci) ? ci : ci ? [ci] : [])
+    setShouldIncome(Array.isArray(si) ? si : si ? [si] : [])
+  }
+}, [direction])
 
   const addFocus = () => {
     if (weeklyFocusInput.trim() && weeklyFocus.length < 3) {
