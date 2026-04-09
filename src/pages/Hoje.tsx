@@ -8,12 +8,18 @@ import WeeklyFocus from '../components/WeeklyFocus'
 import QuickAdd from '../components/QuickAdd'
 
 export default function Hoje() {
-  const { todayTasks, overdueTasks, addTask, completeTask, skipTask, deleteTask } = useTasks()
+  const { todayTasks, overdueTasks, tasks, addTask, completeTask, skipTask, deleteTask } = useTasks()
   const { direction } = useDirection()
   const [showAdd, setShowAdd] = useState(false)
+  const [showConcluidas, setShowConcluidas] = useState(false)
 
   const today = format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })
   const todayStr = today.charAt(0).toUpperCase() + today.slice(1)
+  const todayDate = format(new Date(), 'yyyy-MM-dd')
+
+  const concluidasHoje = tasks.filter(
+    (t) => t.status === 'concluida' && t.date === todayDate
+  )
 
   return (
     <div className="page">
@@ -40,19 +46,14 @@ export default function Hoje() {
             <div style={{ fontSize: '0.75rem', color: 'var(--red)', fontFamily: 'var(--font-mono)', marginBottom: 8, letterSpacing: '0.05em' }}>
               ⚠ TAREFAS ATRASADAS — {overdueTasks.length} pendente{overdueTasks.length > 1 ? 's' : ''}
             </div>
-            <TaskList
-              tasks={overdueTasks}
-              onComplete={completeTask}
-              onSkip={skipTask}
-              onDelete={deleteTask}
-            />
+            <TaskList tasks={overdueTasks} onComplete={completeTask} onSkip={skipTask} onDelete={deleteTask} />
           </div>
         )}
 
-        {/* Top row: Tasks + Focus */}
+        {/* Top row */}
         <div className="grid-2">
 
-          {/* Tasks do dia */}
+          {/* Tarefas do dia */}
           <div className="card">
             <div className="section-header">
               <div className="section-title">
@@ -70,6 +71,43 @@ export default function Hoje() {
               onDelete={deleteTask}
               emptyMessage="Dia livre. Aproveite ou adicione algo."
             />
+
+            {/* Concluídas colapsável */}
+            {concluidasHoje.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <button
+                  onClick={() => setShowConcluidas(!showConcluidas)}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'var(--text-3)', fontSize: '0.78rem',
+                    display: 'flex', alignItems: 'center', gap: 6, padding: 0,
+                  }}
+                >
+                  {showConcluidas ? '▾' : '▸'}
+                  ✅ {concluidasHoje.length} concluída{concluidasHoje.length > 1 ? 's' : ''} hoje
+                </button>
+
+                {showConcluidas && (
+                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {concluidasHoje.map((t) => (
+                      <div key={t.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '7px 10px', borderRadius: 'var(--radius-sm)',
+                        background: 'var(--bg)', opacity: 0.6,
+                      }}>
+                        <span style={{ color: 'var(--green)', fontSize: '0.85rem' }}>✓</span>
+                        <span style={{
+                          fontSize: '0.85rem', color: 'var(--text-2)',
+                          textDecoration: 'line-through',
+                        }}>
+                          {t.title}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Foco da semana */}
@@ -78,7 +116,6 @@ export default function Hoje() {
               <div className="section-title">🎯 Foco da semana</div>
             </div>
             <WeeklyFocus items={direction?.weeklyFocus ?? []} />
-
             {direction?.idealSelf && (
               <>
                 <div className="divider" />
@@ -95,7 +132,7 @@ export default function Hoje() {
           </div>
         </div>
 
-        {/* Values row */}
+        {/* Lembretes fixos */}
         {direction?.values && direction.values.length > 0 && (
           <div className="card">
             <div className="section-header">
@@ -103,9 +140,7 @@ export default function Hoje() {
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {direction.values.map((v, i) => (
-                <span key={i} className="tag">
-                  {v}
-                </span>
+                <span key={i} className="tag">{v}</span>
               ))}
             </div>
           </div>
@@ -117,22 +152,13 @@ export default function Hoje() {
       <button
         onClick={() => setShowAdd(true)}
         style={{
-          position: 'fixed',
-          bottom: 28,
-          right: 28,
-          width: 52,
-          height: 52,
-          borderRadius: '50%',
-          background: 'var(--amber)',
-          color: '#000',
-          fontSize: '1.5rem',
-          fontWeight: 700,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          position: 'fixed', bottom: 28, right: 28,
+          width: 52, height: 52, borderRadius: '50%',
+          background: 'var(--amber)', color: '#000',
+          fontSize: '1.5rem', fontWeight: 700,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 4px 24px rgba(245,166,35,0.35)',
-          transition: 'transform 0.15s, box-shadow 0.15s',
-          zIndex: 50,
+          transition: 'transform 0.15s, box-shadow 0.15s', zIndex: 50,
         }}
         onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.1)' }}
         onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)' }}
