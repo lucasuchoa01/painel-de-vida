@@ -8,40 +8,31 @@ import WeeklyFocus from '../components/WeeklyFocus'
 import QuickAdd from '../components/QuickAdd'
 
 export default function Hoje() {
-  const { todayTasks, overdueTasks, tasks, addTask, completeTask, skipTask, deleteTask } = useTasks()
+  const { overdueTasks, concluidasHoje, upcomingTasksByDate, addTask, completeTask, skipTask, deleteTask } = useTasks()
   const { direction } = useDirection()
   const [showAdd, setShowAdd] = useState(false)
   const [showConcluidas, setShowConcluidas] = useState(false)
 
   const today = format(new Date(), "EEEE, dd 'de' MMMM", { locale: ptBR })
   const todayStr = today.charAt(0).toUpperCase() + today.slice(1)
-  const todayDate = format(new Date(), 'yyyy-MM-dd')
-
-  const concluidasHoje = tasks.filter(
-    (t) => t.status === 'concluida' && t.date === todayDate
-  )
+  const totalPending = upcomingTasksByDate.reduce((acc, g) => acc + g.tasks.length, 0)
 
   return (
     <div className="page">
-      {/* Header */}
       <div style={{ marginBottom: 32 }}>
         <div style={{ fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: 'var(--amber)', letterSpacing: '0.1em', marginBottom: 4 }}>
           {todayStr.toUpperCase()}
         </div>
-        <h1 className="page-title" style={{ marginBottom: 0 }}>
-          Hoje
-        </h1>
+        <h1 className="page-title" style={{ marginBottom: 0 }}>Hoje</h1>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        {/* Overdue alert */}
+        {/* Atrasadas */}
         {overdueTasks.length > 0 && (
           <div style={{
-            background: 'var(--red-dim)',
-            border: '1px solid rgba(224,82,82,0.25)',
-            borderRadius: 'var(--radius)',
-            padding: '14px 18px',
+            background: 'var(--red-dim)', border: '1px solid rgba(224,82,82,0.25)',
+            borderRadius: 'var(--radius)', padding: '14px 18px',
           }}>
             <div style={{ fontSize: '0.75rem', color: 'var(--red)', fontFamily: 'var(--font-mono)', marginBottom: 8, letterSpacing: '0.05em' }}>
               ⚠ TAREFAS ATRASADAS — {overdueTasks.length} pendente{overdueTasks.length > 1 ? 's' : ''}
@@ -50,31 +41,47 @@ export default function Hoje() {
           </div>
         )}
 
-        {/* Top row */}
         <div className="grid-2">
 
-          {/* Tarefas do dia */}
+          {/* Próximas tarefas agrupadas */}
           <div className="card">
             <div className="section-header">
               <div className="section-title">
-                ◈ Tarefas do dia
-                <span className="section-count">{todayTasks.length}</span>
+                ◈ Próximas tarefas
+                <span className="section-count">{totalPending}</span>
               </div>
               <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>
                 + Nova
               </button>
             </div>
-            <TaskList
-              tasks={todayTasks}
-              onComplete={completeTask}
-              onSkip={skipTask}
-              onDelete={deleteTask}
-              emptyMessage="Dia livre. Aproveite ou adicione algo."
-            />
 
-            {/* Concluídas colapsável */}
+            {upcomingTasksByDate.length === 0 && (
+              <div style={{ color: 'var(--text-3)', fontSize: '0.85rem', textAlign: 'center', padding: '24px 0' }}>
+                Nenhuma tarefa pendente.
+              </div>
+            )}
+
+            {upcomingTasksByDate.map((group) => (
+              <div key={group.date} style={{ marginBottom: 16 }}>
+                <div style={{
+                  fontSize: '0.72rem', fontFamily: 'var(--font-mono)',
+                  color: group.label === 'Hoje' ? 'var(--amber)' : 'var(--text-3)',
+                  fontWeight: 600, letterSpacing: '0.08em', marginBottom: 6,
+                }}>
+                  {group.label.toUpperCase()}
+                </div>
+                <TaskList
+                  tasks={group.tasks}
+                  onComplete={completeTask}
+                  onSkip={skipTask}
+                  onDelete={deleteTask}
+                />
+              </div>
+            ))}
+
+            {/* Concluídas hoje */}
             {concluidasHoje.length > 0 && (
-              <div style={{ marginTop: 12 }}>
+              <div style={{ marginTop: 8 }}>
                 <button
                   onClick={() => setShowConcluidas(!showConcluidas)}
                   style={{
@@ -86,7 +93,6 @@ export default function Hoje() {
                   {showConcluidas ? '▾' : '▸'}
                   ✅ {concluidasHoje.length} concluída{concluidasHoje.length > 1 ? 's' : ''} hoje
                 </button>
-
                 {showConcluidas && (
                   <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {concluidasHoje.map((t) => (
@@ -96,10 +102,7 @@ export default function Hoje() {
                         background: 'var(--bg)', opacity: 0.6,
                       }}>
                         <span style={{ color: 'var(--green)', fontSize: '0.85rem' }}>✓</span>
-                        <span style={{
-                          fontSize: '0.85rem', color: 'var(--text-2)',
-                          textDecoration: 'line-through',
-                        }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-2)', textDecoration: 'line-through' }}>
                           {t.title}
                         </span>
                       </div>
@@ -148,7 +151,6 @@ export default function Hoje() {
 
       </div>
 
-      {/* Floating add button */}
       <button
         onClick={() => setShowAdd(true)}
         style={{
@@ -158,7 +160,7 @@ export default function Hoje() {
           fontSize: '1.5rem', fontWeight: 700,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 4px 24px rgba(245,166,35,0.35)',
-          transition: 'transform 0.15s, box-shadow 0.15s', zIndex: 50,
+          transition: 'transform 0.15s', zIndex: 50,
         }}
         onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.1)' }}
         onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)' }}
@@ -166,9 +168,7 @@ export default function Hoje() {
         +
       </button>
 
-      {showAdd && (
-        <QuickAdd onAdd={addTask} onClose={() => setShowAdd(false)} />
-      )}
+      {showAdd && <QuickAdd onAdd={addTask} onClose={() => setShowAdd(false)} />}
     </div>
   )
 }
