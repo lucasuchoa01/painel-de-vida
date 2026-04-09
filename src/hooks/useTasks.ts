@@ -1,19 +1,13 @@
 import { useState, useEffect } from 'react'
 import {
-  collection,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  doc,
+  collection, query, where, orderBy,
+  onSnapshot, addDoc, updateDoc, deleteDoc, doc,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { Task, Priority, TaskImpact, SkipReason } from '../types'
 import { useAuth } from '../context/AuthContext'
 import { format, addDays } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 export function useTasks() {
   const { user } = useAuth()
@@ -61,21 +55,14 @@ export function useTasks() {
   }
 
   const completeTask = async (id: string) => {
-    await updateDoc(doc(db, 'tasks', id), {
-      status: 'concluida',
-      updatedAt: Date.now(),
-    })
+    await updateDoc(doc(db, 'tasks', id), { status: 'concluida', updatedAt: Date.now() })
   }
 
   const skipTask = async (id: string, reason: SkipReason) => {
     const task = tasks.find((t) => t.id === id)
     if (!task) return
     const nextDay = format(addDays(new Date(task.date), 1), 'yyyy-MM-dd')
-    await updateDoc(doc(db, 'tasks', id), {
-      date: nextDay,
-      reason,
-      updatedAt: Date.now(),
-    })
+    await updateDoc(doc(db, 'tasks', id), { date: nextDay, reason, updatedAt: Date.now() })
   }
 
   const updateTask = async (id: string, data: Partial<Task>) => {
@@ -86,18 +73,46 @@ export function useTasks() {
     await deleteDoc(doc(db, 'tasks', id))
   }
 
-  const todayTasks = tasks.filter(
-    (t) => t.date === format(new Date(), 'yyyy-MM-dd') && t.status === 'pendente'
+  const todayStr = format(new Date(), 'yyyy-MM-dd')
+
+  const pendingTasks = tasks.filter((t) => t.status === 'pendente')
+
+  const overdueTasks = pendingTasks.filter((t) => t.date < todayStr)
+
+  const concluidasHoje = tasks.filter(
+    (t) => t.status === 'concluida' && t.date === todayStr
   )
 
-  const overdueTasks = tasks.filter(
-    (t) => t.date < format(new Date(), 'yyyy-MM-dd') && t.status === 'pendente'
-  )
+  // Tarefas pendentes agrupadas por data (hoje em diante)
+  const upcomingTasksByDate: { label: string; date: string; tasks: Task[] }[] = []
+  const futurePending = pendingTasks
+    .filter((t) => t.date >= todayStr)
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  futurePending.forEach((task) => {
+    const existing = upcomingTasksByDate.find((g) => g.date === task.date)
+    if (existing) {
+      existing.tasks.push(task)
+    } else {
+      let label = ''
+      if (task.date === todayStr) {
+        label = 'Hoje'
+      } else if (task.date === format(addDays(new Date(), 1), 'yyyy-MM-dd')) {
+        label = 'Amanhã'
+      } else {
+        label = format(new Date(task.date + 'T12:00:00'), "EEEE, dd/MM", { locale: ptBR })
+        label = label.charAt(0).toUpperCase() + label.slice(1)
+      }
+      upcomingTasksByDate.push({ label, date: task.date, tasks: [task] })
+    }
+  })
 
   return {
     tasks,
-    todayTasks,
+    todayTasks: pendingTasks.filter((t) => t.date === todayStr),
     overdueTasks,
+    concluidasHoje,
+    upcomingTasksByDate,
     loading,
     addTask,
     completeTask,
