@@ -25,13 +25,13 @@ export function useDirection() {
   }, [user])
 
   const saveDirection = async (data: {
-    lifeDirection: string
-    idealSelf: string
-    weeklyFocus: string[]
-    values: string[]
-    currentIncome: string
-    shouldIncome: string
-  }) => {
+  lifeDirection: string
+  idealSelf: string
+  weeklyFocus: string[]
+  values: string[]
+  currentIncome: string[]
+  shouldIncome: string[]
+}) => {
     if (!user) return
     if (direction?.id) {
       await updateDoc(doc(db, 'direction', direction.id), {
