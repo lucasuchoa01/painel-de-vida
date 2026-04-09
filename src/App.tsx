@@ -6,6 +6,7 @@ import Hoje from './pages/Hoje'
 import LimparCabeca from './pages/LimparCabeca'
 import Direcao from './pages/Direcao'
 import Evolucao from './pages/Evolucao'
+import PaginaLivre from './pages/PaginaLivre'
 
 function PrivateRoutes() {
   const { user } = useAuth()
@@ -17,6 +18,7 @@ function PrivateRoutes() {
         <Route path="/limpar" element={<LimparCabeca />} />
         <Route path="/direcao" element={<Direcao />} />
         <Route path="/evolucao" element={<Evolucao />} />
+        <Route path="/livre" element={<PaginaLivre />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Layout>
