@@ -6,6 +6,30 @@ interface Props {
   onSave: (data: { good: string; bad: string; improve: string }) => Promise<void>
 }
 
+const fields = [
+  {
+    key: 'good' as const,
+    label: '✅ O que fiz bem',
+    color: 'var(--green)',
+    hint: 'O que funcionou hoje? Alguma decisão certa, hábito mantido, tarefa importante concluída.',
+    placeholder: 'Ex: Não operei no impulso, fiz minha leitura diária...',
+  },
+  {
+    key: 'bad' as const,
+    label: '❌ Onde vacilei',
+    color: 'var(--red)',
+    hint: 'O que poderia ter feito melhor? Sem julgamento, só honestidade.',
+    placeholder: 'Ex: Fiquei no celular quando devia estar estudando...',
+  },
+  {
+    key: 'improve' as const,
+    label: '🔁 O que melhorar amanhã',
+    color: 'var(--blue)',
+    hint: 'Uma ação concreta para o dia seguinte. Simples e específica.',
+    placeholder: 'Ex: Definir horário fixo para operar, estudar 30min antes do mercado...',
+  },
+]
+
 export default function DailyReview({ todayLog, onSave }: Props) {
   const [good, setGood] = useState('')
   const [bad, setBad] = useState('')
@@ -13,11 +37,14 @@ export default function DailyReview({ todayLog, onSave }: Props) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
+  const setters = { good: setGood, bad: setBad, improve: setImprove }
+  const values = { good, bad, improve }
+
   useEffect(() => {
     if (todayLog) {
-      setGood(todayLog.good)
-      setBad(todayLog.bad)
-      setImprove(todayLog.improve)
+      setGood(todayLog.good ?? '')
+      setBad(todayLog.bad ?? '')
+      setImprove(todayLog.improve ?? '')
     }
   }, [todayLog])
 
@@ -30,25 +57,23 @@ export default function DailyReview({ todayLog, onSave }: Props) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {[
-        { label: '✅ O que fiz bem', value: good, set: setGood, color: 'var(--green)' },
-        { label: '❌ Onde vacilei', value: bad, set: setBad, color: 'var(--red)' },
-        { label: '🔁 O que melhorar amanhã', value: improve, set: setImprove, color: 'var(--blue)' },
-      ].map(({ label, value, set, color }) => (
-        <div key={label}>
-          <label style={{ fontSize: '0.75rem', color, display: 'block', marginBottom: 5, fontWeight: 500 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {fields.map(({ key, label, color, hint, placeholder }) => (
+        <div key={key}>
+          <label style={{ fontSize: '0.75rem', color, display: 'block', marginBottom: 3, fontWeight: 600 }}>
             {label}
           </label>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginBottom: 6, fontStyle: 'italic', lineHeight: 1.4 }}>
+            {hint}
+          </p>
           <textarea
             rows={2}
-            placeholder="Escreva aqui..."
-            value={value}
-            onChange={(e) => set(e.target.value)}
+            placeholder={placeholder}
+            value={values[key]}
+            onChange={(e) => setters[key](e.target.value)}
           />
         </div>
       ))}
-
       <button
         className="btn btn-primary"
         onClick={handleSave}
