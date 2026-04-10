@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   collection, query, where, orderBy,
-  onSnapshot, addDoc, updateDoc, doc,
+  onSnapshot, addDoc, updateDoc, deleteDoc, doc,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { DailyLog } from '../types'
@@ -30,13 +30,9 @@ export function useDailyLog() {
     return unsub
   }, [user])
 
-  // Carrega growAreas e toStudy de um doc separado
   useEffect(() => {
     if (!user) return
-    const q = query(
-      collection(db, 'evolution_config'),
-      where('userId', '==', user.uid)
-    )
+    const q = query(collection(db, 'evolution_config'), where('userId', '==', user.uid))
     const unsub = onSnapshot(q, (snap) => {
       if (!snap.empty) {
         const data = snap.docs[0].data()
@@ -49,15 +45,21 @@ export function useDailyLog() {
 
   const todayLog = logs.find((l) => l.date === today) ?? null
 
-  const saveLog = async (data: { good: string; bad: string; improve: string }) => {
+  const saveLog = async (data: { good: string; bad: string; improve: string }, id?: string) => {
     if (!user) return
-    if (todayLog?.id) {
+    if (id) {
+      await updateDoc(doc(db, 'daily_logs', id), { ...data, updatedAt: Date.now() })
+    } else if (todayLog?.id) {
       await updateDoc(doc(db, 'daily_logs', todayLog.id), { ...data, updatedAt: Date.now() })
     } else {
       await addDoc(collection(db, 'daily_logs'), {
         ...data, userId: user.uid, date: today, createdAt: Date.now(),
       })
     }
+  }
+
+  const deleteLog = async (id: string) => {
+    await deleteDoc(doc(db, 'daily_logs', id))
   }
 
   const saveEvolutionConfig = async (data: { growAreas: string[]; toStudy: string[] }) => {
@@ -73,5 +75,5 @@ export function useDailyLog() {
     }
   }
 
-  return { logs, todayLog, loading, saveLog, growAreas, toStudy, saveEvolutionConfig }
+  return { logs, todayLog, loading, saveLog, deleteLog, growAreas, toStudy, saveEvolutionConfig }
 }
