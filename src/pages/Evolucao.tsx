@@ -4,6 +4,7 @@ import { useTasks } from '../hooks/useTasks'
 import DailyReview from '../components/DailyReview'
 import { format, parseISO, differenceInDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { DailyLog } from '../types'
 
 const skipReasonLabel: Record<string, string> = {
   preguica: '😴 Preguiça',
@@ -24,14 +25,48 @@ const Pill = ({ text, onRemove, color }: { text: string; onRemove: () => void; c
   </span>
 )
 
+function LogCard({ log, onEdit, onDelete }: { log: DailyLog; onEdit: (log: DailyLog) => void; onDelete: (id: string) => void }) {
+  const [hovering, setHovering] = useState(false)
+
+  return (
+    <div
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
+      style={{ background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '12px 14px', position: 'relative' }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: 'var(--amber)' }}>
+          {format(parseISO(log.date), "EEE, dd/MM", { locale: ptBR }).toUpperCase()}
+        </div>
+        {hovering && (
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              onClick={() => onEdit(log)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-3)', padding: '2px 6px' }}
+            >✎ Editar</button>
+            <button
+              onClick={() => { if (confirm('Excluir este review?')) onDelete(log.id) }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--red)', padding: '2px 6px' }}
+            >🗑 Excluir</button>
+          </div>
+        )}
+      </div>
+      {log.good && <div style={{ fontSize: '0.8rem', color: 'var(--text-2)', marginBottom: 4 }}><span style={{ color: 'var(--green)' }}>✅</span> {log.good}</div>}
+      {log.bad && <div style={{ fontSize: '0.8rem', color: 'var(--text-2)', marginBottom: 4 }}><span style={{ color: 'var(--red)' }}>❌</span> {log.bad}</div>}
+      {log.improve && <div style={{ fontSize: '0.8rem', color: 'var(--text-2)' }}><span style={{ color: 'var(--blue)' }}>🔁</span> {log.improve}</div>}
+    </div>
+  )
+}
+
 export default function Evolucao() {
-  const { logs, todayLog, saveLog, growAreas, toStudy, saveEvolutionConfig } = useDailyLog()
+  const { logs, todayLog, saveLog, deleteLog, growAreas, toStudy, saveEvolutionConfig } = useDailyLog()
   const { tasks } = useTasks()
 
   const [growInput, setGrowInput] = useState('')
   const [studyInput, setStudyInput] = useState('')
   const [localGrow, setLocalGrow] = useState<string[] | null>(null)
   const [localStudy, setLocalStudy] = useState<string[] | null>(null)
+  const [editingLog, setEditingLog] = useState<DailyLog | null>(null)
 
   const currentGrow = localGrow ?? growAreas
   const currentStudy = localStudy ?? toStudy
@@ -108,13 +143,29 @@ export default function Evolucao() {
           </div>
         )}
 
-        {/* Review + Histórico */}
         <div className="grid-2">
           <div className="card">
             <div className="section-header">
-              <div className="section-title">📝 Review de hoje</div>
+              <div className="section-title">
+                {editingLog ? `✎ Editando review de ${format(parseISO(editingLog.date), "dd/MM", { locale: ptBR })}` : '📝 Review de hoje'}
+              </div>
+              {editingLog && (
+                <button className="btn btn-ghost" style={{ fontSize: '0.8rem' }} onClick={() => setEditingLog(null)}>
+                  Cancelar
+                </button>
+              )}
             </div>
-            <DailyReview todayLog={todayLog} onSave={saveLog} />
+            <DailyReview
+              todayLog={editingLog ?? todayLog}
+              onSave={async (data) => {
+                if (editingLog) {
+                  await saveLog(data, editingLog.id)
+                  setEditingLog(null)
+                } else {
+                  await saveLog(data)
+                }
+              }}
+            />
           </div>
 
           <div className="card">
@@ -132,21 +183,18 @@ export default function Evolucao() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {recentLogs.map((log) => (
-                  <div key={log.id} style={{ background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '12px 14px' }}>
-                    <div style={{ fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: 'var(--amber)', marginBottom: 8 }}>
-                      {format(parseISO(log.date), "EEE, dd/MM", { locale: ptBR }).toUpperCase()}
-                    </div>
-                    {log.good && <div style={{ fontSize: '0.8rem', color: 'var(--text-2)', marginBottom: 4 }}><span style={{ color: 'var(--green)' }}>✅</span> {log.good}</div>}
-                    {log.bad && <div style={{ fontSize: '0.8rem', color: 'var(--text-2)', marginBottom: 4 }}><span style={{ color: 'var(--red)' }}>❌</span> {log.bad}</div>}
-                    {log.improve && <div style={{ fontSize: '0.8rem', color: 'var(--text-2)' }}><span style={{ color: 'var(--blue)' }}>🔁</span> {log.improve}</div>}
-                  </div>
+                  <LogCard
+                    key={log.id}
+                    log={log}
+                    onEdit={(l) => setEditingLog(l)}
+                    onDelete={(id) => deleteLog(id)}
+                  />
                 ))}
               </div>
             )}
           </div>
         </div>
 
-        {/* Em que posso evoluir */}
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div className="card">
             <div className="section-header">
@@ -166,7 +214,6 @@ export default function Evolucao() {
             </div>
           </div>
 
-          {/* Coisas para pesquisar */}
           <div className="card">
             <div className="section-header">
               <div className="section-title">🔍 Coisas para pesquisar / estudar</div>
