@@ -1,6 +1,48 @@
 import { useState, useEffect } from 'react'
 import { Direction } from '../types'
 
+// ✅ FORA do componente principal
+const Pill = ({ text, onRemove, color }: { text: string; onRemove: () => void; color?: string }) => (
+  <span style={{
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '4px 10px', background: 'var(--bg-4)',
+    border: `1px solid ${color ?? 'var(--border)'}`, borderRadius: 20,
+    fontSize: '0.8rem', color: 'var(--text-2)',
+  }}>
+    {text}
+    <button onClick={onRemove} style={{ color: 'var(--text-3)', fontSize: '0.7rem', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+  </span>
+)
+
+const SectionHint = ({ text }: { text: string }) => (
+  <p style={{ fontSize: '0.78rem', color: 'var(--text-3)', marginBottom: 8, lineHeight: 1.5, fontStyle: 'italic' }}>
+    {text}
+  </p>
+)
+
+const ListInput = ({
+  value, onChange, onAdd, onKeyDown, placeholder, disabled,
+}: {
+  value: string
+  onChange: (v: string) => void
+  onAdd: () => void
+  onKeyDown?: (e: React.KeyboardEvent) => void
+  placeholder: string
+  disabled?: boolean
+}) => (
+  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+    <input
+      placeholder={placeholder}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={onKeyDown ?? ((e) => e.key === 'Enter' && onAdd())}
+      disabled={disabled}
+    />
+    <button className="btn btn-ghost" onClick={onAdd} disabled={disabled}>+</button>
+  </div>
+)
+
+// ✅ Interface e componente principal sem alteração
 interface Props {
   direction: Direction | null
   onSave: (data: {
@@ -28,17 +70,17 @@ export default function DirectionBlock({ direction, onSave }: Props) {
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-  if (direction) {
-    setLifeDirection(direction.lifeDirection ?? '')
-    setIdealSelf(direction.idealSelf ?? '')
-    setWeeklyFocus(direction.weeklyFocus ?? [])
-    setValues(direction.values ?? [])
-    const ci = (direction as any).currentIncome
-    const si = (direction as any).shouldIncome
-    setCurrentIncome(Array.isArray(ci) ? ci : ci ? [ci] : [])
-    setShouldIncome(Array.isArray(si) ? si : si ? [si] : [])
-  }
-}, [direction])
+    if (direction) {
+      setLifeDirection(direction.lifeDirection ?? '')
+      setIdealSelf(direction.idealSelf ?? '')
+      setWeeklyFocus(direction.weeklyFocus ?? [])
+      setValues(direction.values ?? [])
+      const ci = (direction as any).currentIncome
+      const si = (direction as any).shouldIncome
+      setCurrentIncome(Array.isArray(ci) ? ci : ci ? [ci] : [])
+      setShouldIncome(Array.isArray(si) ? si : si ? [si] : [])
+    }
+  }, [direction])
 
   const addFocus = () => {
     if (weeklyFocusInput.trim() && weeklyFocus.length < 3) {
@@ -75,46 +117,6 @@ export default function DirectionBlock({ direction, onSave }: Props) {
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
-
-  const Pill = ({ text, onRemove, color }: { text: string; onRemove: () => void; color?: string }) => (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 6,
-      padding: '4px 10px', background: 'var(--bg-4)',
-      border: `1px solid ${color ?? 'var(--border)'}`, borderRadius: 20,
-      fontSize: '0.8rem', color: 'var(--text-2)',
-    }}>
-      {text}
-      <button onClick={onRemove} style={{ color: 'var(--text-3)', fontSize: '0.7rem', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
-    </span>
-  )
-
-  const SectionHint = ({ text }: { text: string }) => (
-    <p style={{ fontSize: '0.78rem', color: 'var(--text-3)', marginBottom: 8, lineHeight: 1.5, fontStyle: 'italic' }}>
-      {text}
-    </p>
-  )
-
-  const ListInput = ({
-    value, onChange, onAdd, onKeyDown, placeholder, disabled,
-  }: {
-    value: string
-    onChange: (v: string) => void
-    onAdd: () => void
-    onKeyDown?: (e: React.KeyboardEvent) => void
-    placeholder: string
-    disabled?: boolean
-  }) => (
-    <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-      <input
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={onKeyDown ?? ((e) => e.key === 'Enter' && onAdd())}
-        disabled={disabled}
-      />
-      <button className="btn btn-ghost" onClick={onAdd} disabled={disabled}>+</button>
-    </div>
-  )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -161,7 +163,6 @@ export default function DirectionBlock({ direction, onSave }: Props) {
         </div>
       </div>
 
-      {/* Foco de receita */}
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24 }}>
         <div style={{ fontSize: '0.72rem', color: 'var(--amber)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: 20 }}>
           💰 FOCO DE RECEITA
