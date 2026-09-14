@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom'
 
 const navItems = [
   { to: '/', label: 'Hoje', icon: '◈', exact: true },
+  { to: '/rotina', label: 'Rotina', icon: '⏱' },
   { to: '/limpar', label: 'Limpar a Cabeça', icon: '🗑' },
   { to: '/direcao', label: 'Direção', icon: '🧭' },
   { to: '/evolucao', label: 'Evolução', icon: '📈' },
