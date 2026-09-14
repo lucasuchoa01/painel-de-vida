@@ -30,18 +30,18 @@ const DIAS: { key: DiaKey; curto: string; longo: string }[] = [
   { key: 'dom', curto: 'Dom', longo: 'Domingo' },
 ]
 
-const CATEGORIAS: Record<CategoriaKey, { nome: string; barra: string; chip: string }> = {
-  trabalho: { nome: 'Medicina S/A', barra: 'bg-sky-500', chip: 'bg-sky-50 text-sky-700 border-sky-200' },
-  trading: { nome: 'Trading', barra: 'bg-emerald-500', chip: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  corpo: { nome: 'Corpo', barra: 'bg-amber-500', chip: 'bg-amber-50 text-amber-700 border-amber-200' },
-  pessoal: { nome: 'Pessoal', barra: 'bg-violet-500', chip: 'bg-violet-50 text-violet-700 border-violet-200' },
-  estudo: { nome: 'Estudo', barra: 'bg-slate-500', chip: 'bg-slate-100 text-slate-700 border-slate-300' },
+const CATEGORIAS: Record<CategoriaKey, { nome: string; cor: string; fundo: string }> = {
+  trabalho: { nome: 'Medicina S/A', cor: '#60a5fa', fundo: 'rgba(96,165,250,0.12)' },
+  trading: { nome: 'Trading', cor: '#34d399', fundo: 'rgba(52,211,153,0.12)' },
+  corpo: { nome: 'Corpo', cor: '#f472b6', fundo: 'rgba(244,114,182,0.12)' },
+  pessoal: { nome: 'Pessoal', cor: '#a78bfa', fundo: 'rgba(167,139,250,0.12)' },
+  estudo: { nome: 'Estudo', cor: '#94a3b8', fundo: 'rgba(148,163,184,0.12)' },
 }
 
 const ROTINA_VAZIA: Rotina = { seg: [], ter: [], qua: [], qui: [], sex: [], sab: [], dom: [] }
 
-// Ponto de partida: dias úteis com o formato que você descreveu.
-// É só editar/apagar direto na tela depois.
+// Ponto de partida: dias úteis no formato que você descreveu.
+// É só editar ou apagar direto na tela.
 const MODELO_UTIL: Omit<Bloco, 'id'>[] = [
   { inicio: '08:00', fim: '09:00', titulo: 'Acordar e começar o dia', categoria: 'pessoal' },
   { inicio: '09:00', fim: '12:00', titulo: 'Medicina S/A', categoria: 'trabalho' },
@@ -75,13 +75,61 @@ const formatarDuracao = (min: number) => {
   return `${m}min`
 }
 
-const ordenar = (blocos: Bloco[]) => [...blocos].sort((a, b) => emMinutos(a.inicio) - emMinutos(b.inicio))
+const ordenar = (blocos: Bloco[]) =>
+  [...blocos].sort((a, b) => emMinutos(a.inicio) - emMinutos(b.inicio))
 
-const diaDeHoje = (): DiaKey => (['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'] as DiaKey[])[new Date().getDay()]
+const diaDeHoje = (): DiaKey =>
+  (['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'] as DiaKey[])[new Date().getDay()]
 
 const modeloComIds = (): Rotina => {
   const gerar = () => MODELO_UTIL.map((b) => ({ ...b, id: novoId() }))
   return { ...ROTINA_VAZIA, seg: gerar(), ter: gerar(), qua: gerar(), qui: gerar(), sex: gerar() }
+}
+
+/* ---------------------------------------------------------------
+   Estilos base
+--------------------------------------------------------------- */
+
+const cardBase: React.CSSProperties = {
+  background: 'var(--bg-2)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-sm)',
+}
+
+const botaoPrimario: React.CSSProperties = {
+  background: 'var(--amber-dim)',
+  border: '1px solid var(--amber-border)',
+  color: 'var(--amber)',
+  borderRadius: 'var(--radius-sm)',
+  padding: '10px 16px',
+  fontSize: '0.88rem',
+  fontWeight: 600,
+  fontFamily: 'inherit',
+  cursor: 'pointer',
+}
+
+const botaoSecundario: React.CSSProperties = {
+  background: 'transparent',
+  border: '1px solid var(--border)',
+  color: 'var(--text-2)',
+  borderRadius: 'var(--radius-sm)',
+  padding: '10px 16px',
+  fontSize: '0.88rem',
+  fontFamily: 'inherit',
+  cursor: 'pointer',
+}
+
+const campo: React.CSSProperties = {
+  width: '100%',
+  marginTop: 6,
+  padding: '10px 12px',
+  background: 'var(--bg)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-sm)',
+  color: 'inherit',
+  fontSize: '1rem',
+  fontFamily: 'inherit',
+  colorScheme: 'dark', // se seu tema for claro, apague esta linha
 }
 
 /* ---------------------------------------------------------------
@@ -103,13 +151,11 @@ export default function Rotina() {
 
   const [agora, setAgora] = useState(() => new Date())
 
-  // relógio para o marcador "agora" (atualiza a cada minuto)
   useEffect(() => {
     const t = setInterval(() => setAgora(new Date()), 60_000)
     return () => clearInterval(t)
   }, [])
 
-  // carrega do Firestore
   useEffect(() => {
     let ativo = true
     async function carregar() {
@@ -117,11 +163,8 @@ export default function Rotina() {
       try {
         const snap = await getDoc(doc(db, 'rotinas', user.uid))
         if (!ativo) return
-        if (snap.exists()) {
-          setRotina({ ...ROTINA_VAZIA, ...(snap.data().dias as Rotina) })
-        } else {
-          setRotina(modeloComIds())
-        }
+        if (snap.exists()) setRotina({ ...ROTINA_VAZIA, ...(snap.data().dias as Rotina) })
+        else setRotina(modeloComIds())
       } catch {
         if (ativo) setErro('Não foi possível carregar a rotina. Verifique a conexão e recarregue.')
       } finally {
@@ -184,22 +227,66 @@ export default function Rotina() {
   }
 
   if (carregando) {
-    return <div className="p-6 text-sm text-slate-500">Carregando sua rotina…</div>
+    return (
+      <div style={{ padding: 24, color: 'var(--text-2)', fontSize: '0.9rem' }}>
+        Carregando sua rotina…
+      </div>
+    )
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 pb-24 pt-4">
-      <header className="mb-4 flex items-baseline justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Rotina</h1>
-        <span className="text-xs text-slate-400">{salvando ? 'Salvando…' : 'Tudo salvo'}</span>
+    <div style={{ maxWidth: 760, margin: '0 auto', padding: '24px 16px 80px' }}>
+      <header
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 12,
+          marginBottom: 20,
+        }}
+      >
+        <h1
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '1.5rem',
+            fontWeight: 800,
+            letterSpacing: '-0.02em',
+            margin: 0,
+          }}
+        >
+          Rotina
+        </h1>
+        <span style={{ fontSize: '0.75rem', color: 'var(--text-2)' }}>
+          {salvando ? 'Salvando…' : 'Tudo salvo'}
+        </span>
       </header>
 
       {erro && (
-        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>
+        <p
+          style={{
+            ...cardBase,
+            borderColor: 'rgba(248,113,113,0.4)',
+            background: 'rgba(248,113,113,0.1)',
+            color: '#f87171',
+            padding: '10px 12px',
+            fontSize: '0.85rem',
+            marginBottom: 16,
+          }}
+        >
+          {erro}
+        </p>
       )}
 
       {/* Seletor de dia */}
-      <div className="mb-5 flex gap-1 overflow-x-auto pb-1">
+      <div
+        style={{
+          display: 'flex',
+          gap: 4,
+          overflowX: 'auto',
+          paddingBottom: 4,
+          marginBottom: 20,
+        }}
+      >
         {DIAS.map((d) => {
           const ativo = d.key === dia
           const hoje = d.key === diaDeHoje()
@@ -207,16 +294,34 @@ export default function Rotina() {
             <button
               key={d.key}
               onClick={() => setDia(d.key)}
-              className={`flex min-w-[3rem] flex-1 flex-col items-center rounded-lg border px-2 py-2 text-sm transition ${
-                ativo
-                  ? 'border-slate-900 bg-slate-900 text-white'
-                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-              }`}
+              style={{
+                flex: 1,
+                minWidth: 48,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 4,
+                padding: '8px 4px',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.85rem',
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+                background: ativo ? 'var(--amber-dim)' : 'transparent',
+                border: `1px solid ${ativo ? 'var(--amber-border)' : 'var(--border)'}`,
+                color: ativo ? 'var(--amber)' : 'var(--text-2)',
+                fontWeight: ativo ? 600 : 400,
+                transition: 'all 0.15s',
+              }}
             >
-              <span>{d.curto}</span>
-              {hoje && (
-                <span className={`mt-1 h-1 w-1 rounded-full ${ativo ? 'bg-white' : 'bg-slate-900'}`} />
-              )}
+              {d.curto}
+              <span
+                style={{
+                  width: 4,
+                  height: 4,
+                  borderRadius: 999,
+                  background: hoje ? (ativo ? 'var(--amber)' : 'var(--text-2)') : 'transparent',
+                }}
+              />
             </button>
           )
         })}
@@ -224,11 +329,18 @@ export default function Rotina() {
 
       {/* Resumo do dia */}
       {totais.length > 0 && (
-        <div className="mb-4 flex flex-wrap gap-1.5">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
           {totais.map(([cat, min]) => (
             <span
               key={cat}
-              className={`rounded-full border px-2.5 py-1 text-xs ${CATEGORIAS[cat].chip}`}
+              style={{
+                background: CATEGORIAS[cat].fundo,
+                color: CATEGORIAS[cat].cor,
+                border: `1px solid ${CATEGORIAS[cat].fundo}`,
+                borderRadius: 999,
+                padding: '4px 10px',
+                fontSize: '0.75rem',
+              }}
             >
               {CATEGORIAS[cat].nome} · {formatarDuracao(min)}
             </span>
@@ -238,22 +350,29 @@ export default function Rotina() {
 
       {/* Lista de blocos */}
       {blocos.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center">
-          <p className="text-sm text-slate-500">
+        <div
+          style={{
+            border: '1px dashed var(--border)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '40px 16px',
+            textAlign: 'center',
+          }}
+        >
+          <p style={{ color: 'var(--text-2)', fontSize: '0.9rem', margin: 0 }}>
             {DIAS.find((d) => d.key === dia)?.longo} ainda está livre.
           </p>
           <button
+            style={{ ...botaoPrimario, marginTop: 16 }}
             onClick={() => {
               setEditando(null)
               setFormAberto(true)
             }}
-            className="mt-3 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
           >
             Adicionar o primeiro bloco
           </button>
         </div>
       ) : (
-        <ul className="space-y-2">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {blocos.map((b, i) => {
             const anterior = blocos[i - 1]
             const conflito = anterior && emMinutos(anterior.fim) > emMinutos(b.inicio)
@@ -261,71 +380,110 @@ export default function Rotina() {
               ehHoje && minutosAgora >= emMinutos(b.inicio) && minutosAgora < emMinutos(b.fim)
 
             return (
-              <li key={b.id}>
-                <button
-                  onClick={() => {
-                    setEditando(b)
-                    setFormAberto(true)
+              <button
+                key={b.id}
+                onClick={() => {
+                  setEditando(b)
+                  setFormAberto(true)
+                }}
+                style={{
+                  ...cardBase,
+                  borderColor: emAndamento ? 'var(--amber-border)' : 'var(--border)',
+                  display: 'flex',
+                  alignItems: 'stretch',
+                  gap: 12,
+                  padding: 12,
+                  textAlign: 'left',
+                  color: 'inherit',
+                  fontFamily: 'inherit',
+                  cursor: 'pointer',
+                  width: '100%',
+                }}
+              >
+                <span
+                  style={{
+                    width: 3,
+                    flexShrink: 0,
+                    borderRadius: 999,
+                    background: CATEGORIAS[b.categoria].cor,
                   }}
-                  className={`flex w-full items-stretch gap-3 rounded-xl border bg-white p-3 text-left transition hover:border-slate-300 ${
-                    emAndamento ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-200'
-                  }`}
+                />
+                <span
+                  style={{
+                    width: 52,
+                    flexShrink: 0,
+                    fontSize: '0.8rem',
+                    color: 'var(--text-2)',
+                    fontVariantNumeric: 'tabular-nums',
+                    lineHeight: 1.5,
+                  }}
                 >
-                  <span className={`w-1 shrink-0 rounded-full ${CATEGORIAS[b.categoria].barra}`} />
-                  <span className="w-[4.5rem] shrink-0 tabular-nums text-sm text-slate-500">
-                    {b.inicio}
-                    <br />
-                    {b.fim}
+                  {b.inicio}
+                  <br />
+                  {b.fim}
+                </span>
+                <span style={{ minWidth: 0, flex: 1 }}>
+                  <span
+                    style={{
+                      display: 'block',
+                      fontWeight: 600,
+                      fontSize: '0.92rem',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {b.titulo}
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium text-slate-900">{b.titulo}</span>
-                    <span className="mt-0.5 block text-xs text-slate-500">
-                      {CATEGORIAS[b.categoria].nome} · {formatarDuracao(duracao(b))}
-                      {emAndamento && ' · agora'}
-                      {conflito && ' · choca com o bloco anterior'}
-                    </span>
+                  <span
+                    style={{
+                      display: 'block',
+                      marginTop: 3,
+                      fontSize: '0.75rem',
+                      color: emAndamento ? 'var(--amber)' : 'var(--text-2)',
+                    }}
+                  >
+                    {CATEGORIAS[b.categoria].nome} · {formatarDuracao(duracao(b))}
+                    {emAndamento && ' · agora'}
+                    {conflito && ' · choca com o bloco anterior'}
                   </span>
-                </button>
-              </li>
+                </span>
+              </button>
             )
           })}
-        </ul>
+        </div>
       )}
 
       {/* Ações */}
-      <div className="mt-5 flex flex-wrap gap-2">
-        {blocos.length > 0 && (
+      {blocos.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 20 }}>
           <button
+            style={botaoPrimario}
             onClick={() => {
               setEditando(null)
               setFormAberto(true)
             }}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white"
           >
             Adicionar bloco
           </button>
-        )}
-        {blocos.length > 0 && (
-          <button
-            onClick={() => setCopiaAberta((v) => !v)}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700"
-          >
+          <button style={botaoSecundario} onClick={() => setCopiaAberta((v) => !v)}>
             Copiar este dia
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {copiaAberta && (
-        <div className="mt-3 rounded-xl border border-slate-200 p-3">
-          <p className="mb-2 text-sm text-slate-600">
-            Copiar {DIAS.find((d) => d.key === dia)?.longo} para qual dia? O conteúdo do destino é substituído.
+        <div style={{ ...cardBase, padding: 12, marginTop: 12 }}>
+          <p style={{ margin: '0 0 10px', fontSize: '0.85rem', color: 'var(--text-2)' }}>
+            Copiar {DIAS.find((d) => d.key === dia)?.longo} para qual dia? O conteúdo do destino é
+            substituído.
           </p>
-          <div className="flex flex-wrap gap-1.5">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {DIAS.filter((d) => d.key !== dia).map((d) => (
               <button
                 key={d.key}
                 onClick={() => copiarPara(d.key)}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:border-slate-900"
+                style={{ ...botaoSecundario, padding: '6px 12px' }}
               >
                 {d.curto}
               </button>
@@ -350,7 +508,7 @@ export default function Rotina() {
 }
 
 /* ---------------------------------------------------------------
-   Formulário (painel inferior)
+   Formulário
 --------------------------------------------------------------- */
 
 function FormBloco({
@@ -369,86 +527,114 @@ function FormBloco({
   const [titulo, setTitulo] = useState(bloco?.titulo ?? '')
   const [categoria, setCategoria] = useState<CategoriaKey>(bloco?.categoria ?? 'trabalho')
 
-  const invalido = !titulo.trim() || emMinutos(fim) <= emMinutos(inicio)
+  const horarioInvalido = emMinutos(fim) <= emMinutos(inicio)
+  const invalido = !titulo.trim() || horarioInvalido
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40" onClick={onFechar}>
+    <div
+      onClick={onFechar}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 50,
+        background: 'rgba(0,0,0,0.6)',
+        display: 'flex',
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+      }}
+    >
       <div
-        className="w-full max-w-2xl rounded-t-2xl bg-white p-4 pb-8"
         onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%',
+          maxWidth: 760,
+          background: 'var(--bg-2)',
+          borderTop: '1px solid var(--border)',
+          borderRadius: '16px 16px 0 0',
+          padding: '20px 16px 32px',
+        }}
       >
-        <h2 className="mb-4 text-lg font-semibold text-slate-900">
+        <h2 style={{ margin: '0 0 16px', fontSize: '1.05rem', fontWeight: 700 }}>
           {bloco ? 'Editar bloco' : 'Novo bloco'}
         </h2>
 
-        <div className="mb-3 flex gap-3">
-          <label className="flex-1 text-sm text-slate-600">
+        <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+          <label style={{ flex: 1, fontSize: '0.8rem', color: 'var(--text-2)' }}>
             Começa
             <input
               type="time"
               value={inicio}
               onChange={(e) => setInicio(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-base text-slate-900"
+              style={campo}
             />
           </label>
-          <label className="flex-1 text-sm text-slate-600">
+          <label style={{ flex: 1, fontSize: '0.8rem', color: 'var(--text-2)' }}>
             Termina
-            <input
-              type="time"
-              value={fim}
-              onChange={(e) => setFim(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-base text-slate-900"
-            />
+            <input type="time" value={fim} onChange={(e) => setFim(e.target.value)} style={campo} />
           </label>
         </div>
 
-        <label className="mb-3 block text-sm text-slate-600">
+        <label
+          style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-2)', marginBottom: 12 }}
+        >
           O que é
           <input
             value={titulo}
             onChange={(e) => setTitulo(e.target.value)}
             placeholder="Ex.: Medicina S/A, academia, almoço"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-base text-slate-900"
+            style={campo}
           />
         </label>
 
-        <div className="mb-5 flex flex-wrap gap-1.5">
-          {(Object.keys(CATEGORIAS) as CategoriaKey[]).map((c) => (
-            <button
-              key={c}
-              onClick={() => setCategoria(c)}
-              className={`rounded-full border px-3 py-1.5 text-sm ${
-                categoria === c ? CATEGORIAS[c].chip : 'border-slate-200 text-slate-500'
-              }`}
-            >
-              {CATEGORIAS[c].nome}
-            </button>
-          ))}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
+          {(Object.keys(CATEGORIAS) as CategoriaKey[]).map((c) => {
+            const ativo = categoria === c
+            return (
+              <button
+                key={c}
+                onClick={() => setCategoria(c)}
+                style={{
+                  borderRadius: 999,
+                  padding: '6px 12px',
+                  fontSize: '0.8rem',
+                  fontFamily: 'inherit',
+                  cursor: 'pointer',
+                  background: ativo ? CATEGORIAS[c].fundo : 'transparent',
+                  border: `1px solid ${ativo ? CATEGORIAS[c].cor : 'var(--border)'}`,
+                  color: ativo ? CATEGORIAS[c].cor : 'var(--text-2)',
+                }}
+              >
+                {CATEGORIAS[c].nome}
+              </button>
+            )
+          })}
         </div>
 
-        {emMinutos(fim) <= emMinutos(inicio) && (
-          <p className="mb-3 text-sm text-red-600">O fim precisa ser depois do começo.</p>
+        {horarioInvalido && (
+          <p style={{ margin: '0 0 12px', fontSize: '0.8rem', color: '#f87171' }}>
+            O fim precisa ser depois do começo.
+          </p>
         )}
 
-        <div className="flex gap-2">
+        <div style={{ display: 'flex', gap: 8 }}>
           <button
             disabled={invalido}
             onClick={() =>
               onSalvar({ id: bloco?.id ?? novoId(), inicio, fim, titulo: titulo.trim(), categoria })
             }
-            className="flex-1 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-40"
+            style={{ ...botaoPrimario, flex: 1, opacity: invalido ? 0.4 : 1 }}
           >
             Salvar bloco
           </button>
           {bloco && (
             <button
               onClick={() => onRemover(bloco.id)}
-              className="rounded-lg border border-red-200 px-4 py-2.5 text-sm text-red-700"
+              style={{ ...botaoSecundario, borderColor: 'rgba(248,113,113,0.4)', color: '#f87171' }}
             >
               Excluir
             </button>
           )}
-          <button onClick={onFechar} className="rounded-lg px-4 py-2.5 text-sm text-slate-600">
+          <button onClick={onFechar} style={{ ...botaoSecundario, border: '1px solid transparent' }}>
             Cancelar
           </button>
         </div>
