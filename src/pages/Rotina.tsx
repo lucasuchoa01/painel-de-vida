@@ -12,7 +12,7 @@ type DiaKey = 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab' | 'dom'
 type Bloco = {
   id: string
   inicio: string // "08:00"
-  fim: string    // "09:00"
+  fim: string    // "09:00" — se for menor que o início, termina no dia seguinte
   titulo: string
 }
 
@@ -30,6 +30,8 @@ const DIAS: { key: DiaKey; curto: string; longo: string }[] = [
 
 const ROTINA_VAZIA: Rotina = { seg: [], ter: [], qua: [], qui: [], sex: [], sab: [], dom: [] }
 
+const DIA_EM_MIN = 24 * 60
+
 /* ---------------------------------------------------------------
    Helpers de horário
 --------------------------------------------------------------- */
@@ -45,11 +47,18 @@ const emMinutos = (hhmm: string) => {
 }
 
 const deMinutos = (min: number) => {
-  const total = Math.max(0, Math.min(23 * 60 + 59, min))
+  const total = ((min % DIA_EM_MIN) + DIA_EM_MIN) % DIA_EM_MIN
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
 }
 
-const duracao = (b: Bloco) => Math.max(0, emMinutos(b.fim) - emMinutos(b.inicio))
+// true quando o bloco atravessa a meia-noite (ex.: 23:30 → 09:00)
+const viraODia = (b: Bloco) => emMinutos(b.fim) < emMinutos(b.inicio)
+
+const duracao = (b: Bloco) => {
+  const i = emMinutos(b.inicio)
+  const f = emMinutos(b.fim)
+  return f >= i ? f - i : DIA_EM_MIN - i + f
+}
 
 const formatarDuracao = (min: number) => {
   const h = Math.floor(min / 60)
@@ -73,7 +82,7 @@ const diaDeHoje = (): DiaKey =>
      08:00–09:00  | Café + higiene + rotina matinal
      **09:00-10:00** 📈 Trading — estudo/análise
      17:00 em diante   Academia / futebol
-     ~23:30–00:00   Dormir
+     23:30–07:00   Dormir
    Linhas sem horário (títulos, cabeçalho de tabela) são ignoradas.
 --------------------------------------------------------------- */
 
@@ -125,12 +134,12 @@ function parseRotinaTexto(texto: string): Bloco[] {
   const ordenados = brutos.sort((a, b) => emMinutos(a.inicio) - emMinutos(b.inicio))
 
   return ordenados.map((b, i) => {
-    let fim = b.fim === '00:00' ? '23:59' : b.fim
+    let fim = b.fim
     if (!fim) {
       const seguinte = ordenados.slice(i + 1).find((x) => emMinutos(x.inicio) > emMinutos(b.inicio))
       fim = seguinte ? seguinte.inicio : deMinutos(emMinutos(b.inicio) + 60)
     }
-    if (emMinutos(fim) <= emMinutos(b.inicio)) fim = deMinutos(emMinutos(b.inicio) + 60)
+    if (fim === b.inicio) fim = deMinutos(emMinutos(b.inicio) + 60)
     return { id: novoId(), inicio: b.inicio, fim, titulo: b.titulo }
   })
 }
@@ -393,7 +402,7 @@ export default function Rotina() {
       </div>
 
       {blocos.length > 0 && (
-        <p style={{ margin: '0 0 12px', fontSize: '0.75rem', color: 'var(--text-3, var(--text-2))' }}>
+        <p style={{ margin: '0 0 12px', fontSize: '0.75rem', color: 'var(--text-2)' }}>
           {blocos.length} blocos · {formatarDuracao(totalDia)} planejadas
         </p>
       )}
@@ -432,9 +441,17 @@ export default function Rotina() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {blocos.map((b, i) => {
             const anterior = blocos[i - 1]
-            const conflito = anterior && emMinutos(anterior.fim) > emMinutos(b.inicio)
+            // um bloco que vira o dia nunca "choca" com o seguinte
+            const conflito =
+              anterior && !viraODia(anterior) && emMinutos(anterior.fim) > emMinutos(b.inicio)
+
+            const inicioMin = emMinutos(b.inicio)
+            const fimMin = emMinutos(b.fim)
             const emAndamento =
-              ehHoje && minutosAgora >= emMinutos(b.inicio) && minutosAgora < emMinutos(b.fim)
+              ehHoje &&
+              (viraODia(b)
+                ? minutosAgora >= inicioMin || minutosAgora < fimMin
+                : minutosAgora >= inicioMin && minutosAgora < fimMin)
 
             return (
               <button
@@ -485,6 +502,7 @@ export default function Rotina() {
                     }}
                   >
                     {formatarDuracao(duracao(b))}
+                    {viraODia(b) && ' · termina no dia seguinte'}
                     {emAndamento && ' · agora'}
                     {conflito && ' · choca com o bloco anterior'}
                   </span>
@@ -578,8 +596,11 @@ function FormBloco({
   const [fim, setFim] = useState(bloco?.fim ?? '10:00')
   const [titulo, setTitulo] = useState(bloco?.titulo ?? '')
 
-  const horarioInvalido = emMinutos(fim) <= emMinutos(inicio)
-  const invalido = !titulo.trim() || horarioInvalido
+  const mesmoHorario = emMinutos(fim) === emMinutos(inicio)
+  const atravessaMeiaNoite = emMinutos(fim) < emMinutos(inicio)
+  const invalido = !titulo.trim() || mesmoHorario
+
+  const previa = { id: 'previa', inicio, fim, titulo } as Bloco
 
   return (
     <div onClick={onFechar} style={overlay}>
@@ -588,7 +609,7 @@ function FormBloco({
           {bloco ? 'Editar bloco' : 'Novo bloco'}
         </h2>
 
-        <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 8 }}>
           <label style={{ flex: 1, fontSize: '0.8rem', color: 'var(--text-2)' }}>
             Começa
             <input type="time" value={inicio} onChange={(e) => setInicio(e.target.value)} style={campo} />
@@ -599,21 +620,23 @@ function FormBloco({
           </label>
         </div>
 
+        <p style={{ margin: '0 0 16px', fontSize: '0.75rem', color: 'var(--text-2)' }}>
+          {mesmoHorario
+            ? 'Começo e fim iguais — ajuste um dos dois.'
+            : atravessaMeiaNoite
+              ? `Termina no dia seguinte · ${formatarDuracao(duracao(previa))}`
+              : formatarDuracao(duracao(previa))}
+        </p>
+
         <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-2)', marginBottom: 20 }}>
           O que é
           <input
             value={titulo}
             onChange={(e) => setTitulo(e.target.value)}
-            placeholder="Ex.: Medicina S/A, academia, almoço"
+            placeholder="Ex.: Medicina S/A, academia, dormir"
             style={campo}
           />
         </label>
-
-        {horarioInvalido && (
-          <p style={{ margin: '0 0 12px', fontSize: '0.8rem', color: 'var(--red)' }}>
-            O fim precisa ser depois do começo.
-          </p>
-        )}
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button
@@ -653,8 +676,8 @@ const EXEMPLO_TEXTO = `08:00 Acordar
 16:00–17:00 Trading
 17:00 em diante Academia / futebol / vida pessoal
 20:00–21:30 Trading — estudo/backtest
-21:30 em diante Desacelerar
-23:30–00:00 Dormir`
+21:30–23:30 Desacelerar
+23:30–08:00 Dormir`
 
 function ImportarTexto({
   diaAtual,
