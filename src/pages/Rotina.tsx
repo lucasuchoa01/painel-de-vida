@@ -8,14 +8,12 @@ import { useAuth } from '../context/AuthContext'
 --------------------------------------------------------------- */
 
 type DiaKey = 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab' | 'dom'
-type CategoriaKey = 'trabalho' | 'trading' | 'corpo' | 'pessoal' | 'estudo'
 
 type Bloco = {
   id: string
   inicio: string // "08:00"
   fim: string    // "09:00"
   titulo: string
-  categoria: CategoriaKey
 }
 
 type Rotina = Record<DiaKey, Bloco[]>
@@ -30,29 +28,10 @@ const DIAS: { key: DiaKey; curto: string; longo: string }[] = [
   { key: 'dom', curto: 'Dom', longo: 'Domingo' },
 ]
 
-const CATEGORIAS: Record<CategoriaKey, { nome: string; cor: string; fundo: string }> = {
-  trabalho: { nome: 'Medicina S/A', cor: '#60a5fa', fundo: 'rgba(96,165,250,0.12)' },
-  trading: { nome: 'Trading', cor: '#34d399', fundo: 'rgba(52,211,153,0.12)' },
-  corpo: { nome: 'Corpo', cor: '#f472b6', fundo: 'rgba(244,114,182,0.12)' },
-  pessoal: { nome: 'Pessoal', cor: '#a78bfa', fundo: 'rgba(167,139,250,0.12)' },
-  estudo: { nome: 'Estudo', cor: '#94a3b8', fundo: 'rgba(148,163,184,0.12)' },
-}
-
 const ROTINA_VAZIA: Rotina = { seg: [], ter: [], qua: [], qui: [], sex: [], sab: [], dom: [] }
 
-// Ponto de partida: dias úteis no formato que você descreveu.
-// É só editar ou apagar direto na tela.
-const MODELO_UTIL: Omit<Bloco, 'id'>[] = [
-  { inicio: '08:00', fim: '09:00', titulo: 'Acordar e começar o dia', categoria: 'pessoal' },
-  { inicio: '09:00', fim: '12:00', titulo: 'Medicina S/A', categoria: 'trabalho' },
-  { inicio: '12:00', fim: '13:00', titulo: 'Almoço', categoria: 'corpo' },
-  { inicio: '13:00', fim: '16:00', titulo: 'Medicina S/A', categoria: 'trabalho' },
-  { inicio: '16:00', fim: '17:00', titulo: 'Trading', categoria: 'trading' },
-  { inicio: '17:00', fim: '18:30', titulo: 'Academia', categoria: 'corpo' },
-]
-
 /* ---------------------------------------------------------------
-   Helpers
+   Helpers de horário
 --------------------------------------------------------------- */
 
 const novoId = () =>
@@ -63,6 +42,11 @@ const novoId = () =>
 const emMinutos = (hhmm: string) => {
   const [h, m] = hhmm.split(':').map(Number)
   return (h || 0) * 60 + (m || 0)
+}
+
+const deMinutos = (min: number) => {
+  const total = Math.max(0, Math.min(23 * 60 + 59, min))
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
 }
 
 const duracao = (b: Bloco) => Math.max(0, emMinutos(b.fim) - emMinutos(b.inicio))
@@ -81,9 +65,74 @@ const ordenar = (blocos: Bloco[]) =>
 const diaDeHoje = (): DiaKey =>
   (['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'] as DiaKey[])[new Date().getDay()]
 
-const modeloComIds = (): Rotina => {
-  const gerar = () => MODELO_UTIL.map((b) => ({ ...b, id: novoId() }))
-  return { ...ROTINA_VAZIA, seg: gerar(), ter: gerar(), qua: gerar(), qui: gerar(), sex: gerar() }
+/* ---------------------------------------------------------------
+   Importação por texto
+
+   Entende linhas como:
+     08:00                        Acordar
+     08:00–09:00  | Café + higiene + rotina matinal
+     **09:00-10:00** 📈 Trading — estudo/análise
+     17:00 em diante   Academia / futebol
+     ~23:30–00:00   Dormir
+   Linhas sem horário (títulos, cabeçalho de tabela) são ignoradas.
+--------------------------------------------------------------- */
+
+const RE_HORA = /(\d{1,2})\s*[:h]\s*(\d{2})/g
+
+function limparTitulo(txt: string) {
+  return txt
+    .replace(/[\p{Extended_Pictographic}\uFE0F]/gu, '')
+    .replace(/^\s*(em diante|em frente|adiante)\b/i, '')
+    .replace(/^[\s|:•·\-–—>~]+/, '')
+    .replace(/[\s|]+$/, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+function parseRotinaTexto(texto: string): Bloco[] {
+  const brutos: { inicio: string; fim?: string; titulo: string }[] = []
+
+  for (const original of texto.split('\n')) {
+    let linha = original.replace(/[*_`]/g, '').trim()
+    if (!linha) continue
+    linha = linha.replace(/^\|/, '').replace(/\|$/, '').trim()
+    if (/^[-|\s:]+$/.test(linha)) continue // linha separadora de tabela
+
+    RE_HORA.lastIndex = 0
+    const achados = [...linha.matchAll(RE_HORA)]
+    if (achados.length === 0) continue
+
+    const primeiro = achados[0]
+    const inicioIdx = primeiro.index ?? 0
+    const inicio = deMinutos(Number(primeiro[1]) * 60 + Number(primeiro[2]))
+
+    let corte = inicioIdx + primeiro[0].length
+    let fim: string | undefined
+
+    const segundo = achados[1]
+    if (segundo && (segundo.index ?? 0) - corte <= 6) {
+      fim = deMinutos(Number(segundo[1]) * 60 + Number(segundo[2]))
+      corte = (segundo.index ?? 0) + segundo[0].length
+    }
+
+    let titulo = limparTitulo(linha.slice(corte))
+    if (!titulo) titulo = limparTitulo(linha.slice(0, inicioIdx))
+    if (!titulo) continue
+
+    brutos.push({ inicio, fim, titulo })
+  }
+
+  const ordenados = brutos.sort((a, b) => emMinutos(a.inicio) - emMinutos(b.inicio))
+
+  return ordenados.map((b, i) => {
+    let fim = b.fim === '00:00' ? '23:59' : b.fim
+    if (!fim) {
+      const seguinte = ordenados.slice(i + 1).find((x) => emMinutos(x.inicio) > emMinutos(b.inicio))
+      fim = seguinte ? seguinte.inicio : deMinutos(emMinutos(b.inicio) + 60)
+    }
+    if (emMinutos(fim) <= emMinutos(b.inicio)) fim = deMinutos(emMinutos(b.inicio) + 60)
+    return { id: novoId(), inicio: b.inicio, fim, titulo: b.titulo }
+  })
 }
 
 /* ---------------------------------------------------------------
@@ -129,7 +178,28 @@ const campo: React.CSSProperties = {
   color: 'inherit',
   fontSize: '1rem',
   fontFamily: 'inherit',
-  colorScheme: 'dark', // se seu tema for claro, apague esta linha
+  colorScheme: 'dark',
+}
+
+const overlay: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  zIndex: 50,
+  background: 'rgba(0,0,0,0.6)',
+  display: 'flex',
+  alignItems: 'flex-end',
+  justifyContent: 'center',
+}
+
+const painel: React.CSSProperties = {
+  width: '100%',
+  maxWidth: 760,
+  maxHeight: '90vh',
+  overflowY: 'auto',
+  background: 'var(--bg-2)',
+  borderTop: '1px solid var(--border)',
+  borderRadius: '16px 16px 0 0',
+  padding: '20px 16px 32px',
 }
 
 /* ---------------------------------------------------------------
@@ -147,6 +217,7 @@ export default function Rotina() {
 
   const [editando, setEditando] = useState<Bloco | null>(null)
   const [formAberto, setFormAberto] = useState(false)
+  const [importAberto, setImportAberto] = useState(false)
   const [copiaAberta, setCopiaAberta] = useState(false)
 
   const [agora, setAgora] = useState(() => new Date())
@@ -164,7 +235,6 @@ export default function Rotina() {
         const snap = await getDoc(doc(db, 'rotinas', user.uid))
         if (!ativo) return
         if (snap.exists()) setRotina({ ...ROTINA_VAZIA, ...(snap.data().dias as Rotina) })
-        else setRotina(modeloComIds())
       } catch {
         if (ativo) setErro('Não foi possível carregar a rotina. Verifique a conexão e recarregue.')
       } finally {
@@ -192,14 +262,7 @@ export default function Rotina() {
   }
 
   const blocos = useMemo(() => ordenar(rotina[dia] ?? []), [rotina, dia])
-
-  const totais = useMemo(() => {
-    const acc: Partial<Record<CategoriaKey, number>> = {}
-    blocos.forEach((b) => {
-      acc[b.categoria] = (acc[b.categoria] ?? 0) + duracao(b)
-    })
-    return Object.entries(acc).sort((a, b) => b[1] - a[1]) as [CategoriaKey, number][]
-  }, [blocos])
+  const totalDia = useMemo(() => blocos.reduce((acc, b) => acc + duracao(b), 0), [blocos])
 
   const minutosAgora = agora.getHours() * 60 + agora.getMinutes()
   const ehHoje = dia === diaDeHoje()
@@ -224,6 +287,16 @@ export default function Rotina() {
     persistir({ ...rotina, [destino]: copia })
     setCopiaAberta(false)
     setDia(destino)
+  }
+
+  function aplicarImportacao(blocosNovos: Bloco[], dias: DiaKey[]) {
+    const nova = { ...rotina }
+    dias.forEach((d) => {
+      nova[d] = blocosNovos.map((b) => ({ ...b, id: novoId() }))
+    })
+    persistir(nova)
+    setImportAberto(false)
+    if (dias.length && !dias.includes(dia)) setDia(dias[0])
   }
 
   if (carregando) {
@@ -265,9 +338,9 @@ export default function Rotina() {
         <p
           style={{
             ...cardBase,
-            borderColor: 'rgba(248,113,113,0.4)',
-            background: 'rgba(248,113,113,0.1)',
-            color: '#f87171',
+            borderColor: 'rgba(224,82,82,0.35)',
+            background: 'var(--red-dim)',
+            color: 'var(--red)',
             padding: '10px 12px',
             fontSize: '0.85rem',
             marginBottom: 16,
@@ -278,15 +351,7 @@ export default function Rotina() {
       )}
 
       {/* Seletor de dia */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 4,
-          overflowX: 'auto',
-          paddingBottom: 4,
-          marginBottom: 20,
-        }}
-      >
+      <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 4, marginBottom: 16 }}>
         {DIAS.map((d) => {
           const ativo = d.key === dia
           const hoje = d.key === diaDeHoje()
@@ -327,25 +392,10 @@ export default function Rotina() {
         })}
       </div>
 
-      {/* Resumo do dia */}
-      {totais.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
-          {totais.map(([cat, min]) => (
-            <span
-              key={cat}
-              style={{
-                background: CATEGORIAS[cat].fundo,
-                color: CATEGORIAS[cat].cor,
-                border: `1px solid ${CATEGORIAS[cat].fundo}`,
-                borderRadius: 999,
-                padding: '4px 10px',
-                fontSize: '0.75rem',
-              }}
-            >
-              {CATEGORIAS[cat].nome} · {formatarDuracao(min)}
-            </span>
-          ))}
-        </div>
+      {blocos.length > 0 && (
+        <p style={{ margin: '0 0 12px', fontSize: '0.75rem', color: 'var(--text-3, var(--text-2))' }}>
+          {blocos.length} blocos · {formatarDuracao(totalDia)} planejadas
+        </p>
       )}
 
       {/* Lista de blocos */}
@@ -361,15 +411,22 @@ export default function Rotina() {
           <p style={{ color: 'var(--text-2)', fontSize: '0.9rem', margin: 0 }}>
             {DIAS.find((d) => d.key === dia)?.longo} ainda está livre.
           </p>
-          <button
-            style={{ ...botaoPrimario, marginTop: 16 }}
-            onClick={() => {
-              setEditando(null)
-              setFormAberto(true)
-            }}
+          <div
+            style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16, flexWrap: 'wrap' }}
           >
-            Adicionar o primeiro bloco
-          </button>
+            <button
+              style={botaoPrimario}
+              onClick={() => {
+                setEditando(null)
+                setFormAberto(true)
+              }}
+            >
+              Adicionar bloco
+            </button>
+            <button style={botaoSecundario} onClick={() => setImportAberto(true)}>
+              Colar rotina em texto
+            </button>
+          </div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -389,10 +446,11 @@ export default function Rotina() {
                 style={{
                   ...cardBase,
                   borderColor: emAndamento ? 'var(--amber-border)' : 'var(--border)',
+                  background: emAndamento ? 'var(--amber-dim)' : 'var(--bg-2)',
                   display: 'flex',
-                  alignItems: 'stretch',
-                  gap: 12,
-                  padding: 12,
+                  alignItems: 'center',
+                  gap: 14,
+                  padding: '12px 14px',
                   textAlign: 'left',
                   color: 'inherit',
                   fontFamily: 'inherit',
@@ -402,18 +460,10 @@ export default function Rotina() {
               >
                 <span
                   style={{
-                    width: 3,
-                    flexShrink: 0,
-                    borderRadius: 999,
-                    background: CATEGORIAS[b.categoria].cor,
-                  }}
-                />
-                <span
-                  style={{
                     width: 52,
                     flexShrink: 0,
                     fontSize: '0.8rem',
-                    color: 'var(--text-2)',
+                    color: emAndamento ? 'var(--amber)' : 'var(--text-2)',
                     fontVariantNumeric: 'tabular-nums',
                     lineHeight: 1.5,
                   }}
@@ -423,16 +473,7 @@ export default function Rotina() {
                   {b.fim}
                 </span>
                 <span style={{ minWidth: 0, flex: 1 }}>
-                  <span
-                    style={{
-                      display: 'block',
-                      fontWeight: 600,
-                      fontSize: '0.92rem',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
+                  <span style={{ display: 'block', fontWeight: 600, fontSize: '0.92rem' }}>
                     {b.titulo}
                   </span>
                   <span
@@ -443,7 +484,7 @@ export default function Rotina() {
                       color: emAndamento ? 'var(--amber)' : 'var(--text-2)',
                     }}
                   >
-                    {CATEGORIAS[b.categoria].nome} · {formatarDuracao(duracao(b))}
+                    {formatarDuracao(duracao(b))}
                     {emAndamento && ' · agora'}
                     {conflito && ' · choca com o bloco anterior'}
                   </span>
@@ -465,6 +506,9 @@ export default function Rotina() {
             }}
           >
             Adicionar bloco
+          </button>
+          <button style={botaoSecundario} onClick={() => setImportAberto(true)}>
+            Colar rotina em texto
           </button>
           <button style={botaoSecundario} onClick={() => setCopiaAberta((v) => !v)}>
             Copiar este dia
@@ -503,12 +547,20 @@ export default function Rotina() {
           }}
         />
       )}
+
+      {importAberto && (
+        <ImportarTexto
+          diaAtual={dia}
+          onAplicar={aplicarImportacao}
+          onFechar={() => setImportAberto(false)}
+        />
+      )}
     </div>
   )
 }
 
 /* ---------------------------------------------------------------
-   Formulário
+   Formulário de bloco
 --------------------------------------------------------------- */
 
 function FormBloco({
@@ -525,35 +577,13 @@ function FormBloco({
   const [inicio, setInicio] = useState(bloco?.inicio ?? '09:00')
   const [fim, setFim] = useState(bloco?.fim ?? '10:00')
   const [titulo, setTitulo] = useState(bloco?.titulo ?? '')
-  const [categoria, setCategoria] = useState<CategoriaKey>(bloco?.categoria ?? 'trabalho')
 
   const horarioInvalido = emMinutos(fim) <= emMinutos(inicio)
   const invalido = !titulo.trim() || horarioInvalido
 
   return (
-    <div
-      onClick={onFechar}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 50,
-        background: 'rgba(0,0,0,0.6)',
-        display: 'flex',
-        alignItems: 'flex-end',
-        justifyContent: 'center',
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '100%',
-          maxWidth: 760,
-          background: 'var(--bg-2)',
-          borderTop: '1px solid var(--border)',
-          borderRadius: '16px 16px 0 0',
-          padding: '20px 16px 32px',
-        }}
-      >
+    <div onClick={onFechar} style={overlay}>
+      <div onClick={(e) => e.stopPropagation()} style={painel}>
         <h2 style={{ margin: '0 0 16px', fontSize: '1.05rem', fontWeight: 700 }}>
           {bloco ? 'Editar bloco' : 'Novo bloco'}
         </h2>
@@ -561,12 +591,7 @@ function FormBloco({
         <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
           <label style={{ flex: 1, fontSize: '0.8rem', color: 'var(--text-2)' }}>
             Começa
-            <input
-              type="time"
-              value={inicio}
-              onChange={(e) => setInicio(e.target.value)}
-              style={campo}
-            />
+            <input type="time" value={inicio} onChange={(e) => setInicio(e.target.value)} style={campo} />
           </label>
           <label style={{ flex: 1, fontSize: '0.8rem', color: 'var(--text-2)' }}>
             Termina
@@ -574,9 +599,7 @@ function FormBloco({
           </label>
         </div>
 
-        <label
-          style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-2)', marginBottom: 12 }}
-        >
+        <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-2)', marginBottom: 20 }}>
           O que é
           <input
             value={titulo}
@@ -586,32 +609,8 @@ function FormBloco({
           />
         </label>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
-          {(Object.keys(CATEGORIAS) as CategoriaKey[]).map((c) => {
-            const ativo = categoria === c
-            return (
-              <button
-                key={c}
-                onClick={() => setCategoria(c)}
-                style={{
-                  borderRadius: 999,
-                  padding: '6px 12px',
-                  fontSize: '0.8rem',
-                  fontFamily: 'inherit',
-                  cursor: 'pointer',
-                  background: ativo ? CATEGORIAS[c].fundo : 'transparent',
-                  border: `1px solid ${ativo ? CATEGORIAS[c].cor : 'var(--border)'}`,
-                  color: ativo ? CATEGORIAS[c].cor : 'var(--text-2)',
-                }}
-              >
-                {CATEGORIAS[c].nome}
-              </button>
-            )
-          })}
-        </div>
-
         {horarioInvalido && (
-          <p style={{ margin: '0 0 12px', fontSize: '0.8rem', color: '#f87171' }}>
+          <p style={{ margin: '0 0 12px', fontSize: '0.8rem', color: 'var(--red)' }}>
             O fim precisa ser depois do começo.
           </p>
         )}
@@ -619,9 +618,7 @@ function FormBloco({
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             disabled={invalido}
-            onClick={() =>
-              onSalvar({ id: bloco?.id ?? novoId(), inicio, fim, titulo: titulo.trim(), categoria })
-            }
+            onClick={() => onSalvar({ id: bloco?.id ?? novoId(), inicio, fim, titulo: titulo.trim() })}
             style={{ ...botaoPrimario, flex: 1, opacity: invalido ? 0.4 : 1 }}
           >
             Salvar bloco
@@ -629,11 +626,157 @@ function FormBloco({
           {bloco && (
             <button
               onClick={() => onRemover(bloco.id)}
-              style={{ ...botaoSecundario, borderColor: 'rgba(248,113,113,0.4)', color: '#f87171' }}
+              style={{ ...botaoSecundario, borderColor: 'rgba(224,82,82,0.35)', color: 'var(--red)' }}
             >
               Excluir
             </button>
           )}
+          <button onClick={onFechar} style={{ ...botaoSecundario, border: '1px solid transparent' }}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ---------------------------------------------------------------
+   Importar rotina em texto
+--------------------------------------------------------------- */
+
+const EXEMPLO_TEXTO = `08:00 Acordar
+08:00–09:00 Café + higiene + rotina matinal
+09:00–10:00 Trading — estudo/análise
+10:00–12:30 Medicina S/A
+12:30–13:30 Almoço + descanso
+13:30–16:00 Medicina S/A
+16:00–17:00 Trading
+17:00 em diante Academia / futebol / vida pessoal
+20:00–21:30 Trading — estudo/backtest
+21:30 em diante Desacelerar
+23:30–00:00 Dormir`
+
+function ImportarTexto({
+  diaAtual,
+  onAplicar,
+  onFechar,
+}: {
+  diaAtual: DiaKey
+  onAplicar: (blocos: Bloco[], dias: DiaKey[]) => void
+  onFechar: () => void
+}) {
+  const [texto, setTexto] = useState('')
+  const [destinos, setDestinos] = useState<DiaKey[]>([diaAtual])
+
+  const blocos = useMemo(() => parseRotinaTexto(texto), [texto])
+
+  function alternarDia(d: DiaKey) {
+    setDestinos((atual) => (atual.includes(d) ? atual.filter((x) => x !== d) : [...atual, d]))
+  }
+
+  return (
+    <div onClick={onFechar} style={overlay}>
+      <div onClick={(e) => e.stopPropagation()} style={painel}>
+        <h2 style={{ margin: '0 0 6px', fontSize: '1.05rem', fontWeight: 700 }}>Colar rotina em texto</h2>
+        <p style={{ margin: '0 0 12px', fontSize: '0.8rem', color: 'var(--text-2)', lineHeight: 1.5 }}>
+          Uma linha por bloco, começando pelo horário. Aceita 08:00, 08:00–09:00 e "17:00 em diante".
+          Linhas sem horário são ignoradas.
+        </p>
+
+        <textarea
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          rows={9}
+          placeholder={EXEMPLO_TEXTO}
+          style={{ ...campo, marginTop: 0, fontFamily: 'var(--font-mono, monospace)', fontSize: '0.85rem' }}
+        />
+
+        <button
+          onClick={() => setTexto(EXEMPLO_TEXTO)}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            marginTop: 8,
+            color: 'var(--amber)',
+            fontSize: '0.78rem',
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+          }}
+        >
+          Usar o exemplo acima
+        </button>
+
+        {texto.trim() && (
+          <div style={{ ...cardBase, padding: 12, marginTop: 14 }}>
+            <p style={{ margin: '0 0 8px', fontSize: '0.78rem', color: 'var(--text-2)' }}>
+              {blocos.length === 0
+                ? 'Nenhum horário reconhecido. Confira se cada linha começa com um horário.'
+                : `${blocos.length} blocos reconhecidos:`}
+            </p>
+            {blocos.map((b) => (
+              <div key={b.id} style={{ fontSize: '0.8rem', padding: '3px 0', display: 'flex', gap: 10 }}>
+                <span style={{ color: 'var(--text-2)', fontVariantNumeric: 'tabular-nums' }}>
+                  {b.inicio}–{b.fim}
+                </span>
+                <span>{b.titulo}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <p style={{ margin: '18px 0 8px', fontSize: '0.8rem', color: 'var(--text-2)' }}>
+          Aplicar em quais dias? O conteúdo atual desses dias é substituído.
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          {DIAS.map((d) => {
+            const ativo = destinos.includes(d.key)
+            return (
+              <button
+                key={d.key}
+                onClick={() => alternarDia(d.key)}
+                style={{
+                  ...botaoSecundario,
+                  padding: '6px 12px',
+                  background: ativo ? 'var(--amber-dim)' : 'transparent',
+                  borderColor: ativo ? 'var(--amber-border)' : 'var(--border)',
+                  color: ativo ? 'var(--amber)' : 'var(--text-2)',
+                  fontWeight: ativo ? 600 : 400,
+                }}
+              >
+                {d.curto}
+              </button>
+            )
+          })}
+        </div>
+        <button
+          onClick={() => setDestinos(['seg', 'ter', 'qua', 'qui', 'sex'])}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            marginBottom: 18,
+            color: 'var(--amber)',
+            fontSize: '0.78rem',
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+          }}
+        >
+          Selecionar segunda a sexta
+        </button>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            disabled={blocos.length === 0 || destinos.length === 0}
+            onClick={() => onAplicar(blocos, destinos)}
+            style={{
+              ...botaoPrimario,
+              flex: 1,
+              opacity: blocos.length === 0 || destinos.length === 0 ? 0.4 : 1,
+            }}
+          >
+            Importar {blocos.length > 0 ? `${blocos.length} blocos` : ''}
+          </button>
           <button onClick={onFechar} style={{ ...botaoSecundario, border: '1px solid transparent' }}>
             Cancelar
           </button>
