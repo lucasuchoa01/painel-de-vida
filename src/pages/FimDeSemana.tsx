@@ -198,6 +198,26 @@ export default function FimDeSemana() {
   const history = useMemo(() => plans.filter(p => p.status !== 'planejado' || p.date < today()).sort((a, b) => b.date.localeCompare(a.date)), [plans])
   const grouped = useMemo(() => upcoming.reduce<Record<string, WeekendPlan[]>>((acc, plan) => { (acc[plan.date] ||= []).push(plan); return acc }, {}), [upcoming])
   const plannedIdeaIds = useMemo(() => new Set(plans.filter(p => p.status !== 'cancelado' && p.experienceId).map(p => p.experienceId as string)), [plans])
+  // Mantém as categorias padrão e acrescenta automaticamente todas as categorias
+  // personalizadas já usadas em ideias ou planejamentos salvos no Firestore.
+  const availableCategories = useMemo(() => {
+    const values = [...categories, ...ideas.map(idea => idea.category), ...plans.map(plan => plan.category)]
+    const unique = new Map<string, string>()
+    values.forEach(value => {
+      const label = (value || '').trim()
+      if (!label) return
+      const key = normalizeTitle(label)
+      if (key && !unique.has(key)) unique.set(key, label)
+    })
+    return [...unique.values()].sort((a, b) => {
+      const aIndex = categories.findIndex(item => normalizeTitle(item) === normalizeTitle(a))
+      const bIndex = categories.findIndex(item => normalizeTitle(item) === normalizeTitle(b))
+      if (aIndex >= 0 && bIndex >= 0) return aIndex - bIndex
+      if (aIndex >= 0) return -1
+      if (bIndex >= 0) return 1
+      return a.localeCompare(b, 'pt-BR')
+    })
+  }, [ideas, plans])
   const filteredIdeas = useMemo(() => {
     const search = normalizeTitle(ideaSearch)
     let result = [...ideas]
@@ -357,7 +377,7 @@ export default function FimDeSemana() {
         <label style={{ fontSize: '.75rem', color: 'var(--text-3)' }}>O QUE VOCÊ QUER FAZER?</label>
         <input autoFocus value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex.: Ir ao cinema" required />
         <label style={{ fontSize: '.75rem', color: 'var(--text-3)' }}>CATEGORIA</label>
-        <select value={category} onChange={e => setCategory(e.target.value)}>{categories.map(c => <option key={c}>{c}</option>)}</select>
+        <select value={category} onChange={e => setCategory(e.target.value)}>{availableCategories.map(c => <option key={c} value={c}>{c}</option>)}</select>
         <input value={customCategory} onChange={e => setCustomCategory(e.target.value)} placeholder="Ou digite uma categoria própria (opcional)" />
         {modal === 'plan' && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div><label style={{ fontSize: '.75rem', color: 'var(--text-3)' }}>DATA</label><input type="date" value={date} onChange={e => setDate(e.target.value)} required min={today()} /></div>
