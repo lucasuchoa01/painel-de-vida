@@ -160,6 +160,7 @@ export default function FimDeSemana() {
   const [importing, setImporting] = useState(false)
   const [importError, setImportError] = useState('')
   const [ideaFilter, setIdeaFilter] = useState<'todas' | 'favoritas' | 'naoPlanejadas' | 'planejadas'>('todas')
+  const [ideaSearch, setIdeaSearch] = useState('')
   const [ideaSort, setIdeaSort] = useState<'recentes' | 'alfabetica'>('recentes')
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({})
 
@@ -198,13 +199,15 @@ export default function FimDeSemana() {
   const grouped = useMemo(() => upcoming.reduce<Record<string, WeekendPlan[]>>((acc, plan) => { (acc[plan.date] ||= []).push(plan); return acc }, {}), [upcoming])
   const plannedIdeaIds = useMemo(() => new Set(plans.filter(p => p.status !== 'cancelado' && p.experienceId).map(p => p.experienceId as string)), [plans])
   const filteredIdeas = useMemo(() => {
+    const search = normalizeTitle(ideaSearch)
     let result = [...ideas]
+    if (search) result = result.filter(idea => normalizeTitle(`${idea.title} ${idea.category} ${idea.description || ''}`).includes(search))
     if (ideaFilter === 'favoritas') result = result.filter(idea => idea.isFavorite)
     if (ideaFilter === 'naoPlanejadas') result = result.filter(idea => !plannedIdeaIds.has(idea.id))
     if (ideaFilter === 'planejadas') result = result.filter(idea => plannedIdeaIds.has(idea.id))
     result.sort((a, b) => ideaSort === 'alfabetica' ? a.title.localeCompare(b.title, 'pt-BR') : b.createdAt - a.createdAt)
     return result
-  }, [ideas, ideaFilter, ideaSort, plannedIdeaIds])
+  }, [ideas, ideaFilter, ideaSort, plannedIdeaIds, ideaSearch])
   const ideasByCategory = useMemo(() => {
     const groups: Record<string, Experience[]> = {}
     filteredIdeas.forEach(idea => {
@@ -278,6 +281,17 @@ export default function FimDeSemana() {
       {tab === 'ideias' && <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div className="card">
           <div className="section-header"><div className="section-title">Suas ideias <span className="section-count">{filteredIdeas.length} / {ideas.length}</span></div></div>
+          <div style={{ position: 'relative', marginTop: 12 }}>
+            <input
+              type="search"
+              value={ideaSearch}
+              onChange={e => setIdeaSearch(e.target.value)}
+              placeholder="Buscar ideia por nome, categoria ou detalhe..."
+              aria-label="Buscar ideias"
+              style={{ width: '100%', paddingRight: ideaSearch ? 76 : 12 }}
+            />
+            {ideaSearch && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setIdeaSearch('')} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)' }}>Limpar</button>}
+          </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 12 }}>
             {([['todas', 'Todas'], ['favoritas', 'Favoritas'], ['naoPlanejadas', 'Ainda não planejadas'], ['planejadas', 'Já planejadas']] as const).map(([key, label]) => <button key={key} className={`btn btn-sm ${ideaFilter === key ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setIdeaFilter(key)}>{label}</button>)}
             <div style={{ flex: 1 }} />
@@ -286,7 +300,7 @@ export default function FimDeSemana() {
             </select>
           </div>
         </div>
-        {ideasByCategory.length === 0 && <div className="card" style={{ textAlign: 'center', padding: 28, color: 'var(--text-3)' }}>{ideaFilter === 'favoritas' ? 'Você ainda não marcou ideias como favoritas.' : 'Nenhuma ideia encontrada neste filtro.'}</div>}
+        {ideasByCategory.length === 0 && <div className="card" style={{ textAlign: 'center', padding: 28, color: 'var(--text-3)' }}>{ideaSearch ? 'Nenhuma ideia corresponde à sua pesquisa.' : ideaFilter === 'favoritas' ? 'Você ainda não marcou ideias como favoritas.' : 'Nenhuma ideia encontrada neste filtro.'}</div>}
         {ideasByCategory.map(([categoryName, items]) => {
           const isOpen = !!openCategories[categoryName]
           return <div className="card" key={categoryName} style={{ padding: 0, overflow: 'hidden' }}>
