@@ -15,8 +15,59 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
   </div>
 }
 
+type ParsedIdea = { title: string; category: string; description?: string }
+
+function normalizeTitle(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+function categoryFromHeading(heading: string) {
+  const value = heading.toLowerCase()
+  if (value.includes('esportes')) return 'Esporte'
+  if (value.includes('aventura')) return 'Aventura'
+  if (value.includes('bares') || value.includes('gastronomia')) return 'Gastronomia'
+  if (value.includes('jogos')) return 'Lazer'
+  if (value.includes('passeios') || value.includes('parques') || value.includes('eventos')) return 'Cultura'
+  if (value.includes('viagens')) return 'Viagem'
+  if (value.includes('amigos') || value.includes('família')) return 'Social'
+  if (value.includes('tranquilos') || value.includes('individuais')) return 'Desenvolvimento pessoal'
+  return 'Outros'
+}
+
+function parseIdeas(text: string): ParsedIdea[] {
+  const result: ParsedIdea[] = []
+  let currentCategory = 'Outros'
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line) continue
+    const heading = line.match(/^#{0,3}\s*\d+\.\s*(.+)$/) || line.match(/^#{1,3}\s*(.+)$/)
+    if (heading) {
+      currentCategory = categoryFromHeading(heading[1])
+      continue
+    }
+    if (/^\d+\.\s/.test(line) && !line.startsWith('- ')) continue
+    if (!/^[-*•]\s+/.test(line)) continue
+
+    let item = line.replace(/^[-*•]\s+/, '').trim()
+    const completedMark = /(?:✅|☑️|✓)\s*$/.test(item)
+    item = item.replace(/(?:✅|☑️|✓)\s*$/, '').trim()
+    const urls = [...item.matchAll(/\((https?:\/\/[^)]+)\)|\[(?:[^\]]*)\]\((https?:\/\/[^)]+)\)/g)].map(m => m[1] || m[2]).filter(Boolean)
+    item = item.replace(/\s*[—–-]\s*\[(.*?)\]\((https?:\/\/[^)]+)\)/g, '').trim()
+    item = item.replace(/\s*[—–-]\s*\[([^\]]+)\]/g, '').trim()
+    item = item.replace(/\s*[—–-]\s*(?:pesquisar no Google|ver TikTok).*$/i, '').trim()
+    item = item.replace(/\s+/g, ' ')
+    if (!item) continue
+    const notes: string[] = []
+    if (urls.length) notes.push(`Link: ${urls.join(' | ')}`)
+    if (/pesquisar no Google/i.test(line)) notes.push('Pesquisar no Google')
+    if (completedMark) notes.push('Marcado como já realizado na lista original')
+    result.push({ title: item, category: currentCategory, ...(notes.length ? { description: notes.join(' · ') } : {}) })
+  }
+  return result
+}
+
 export default function FimDeSemana() {
-  const { ideas, plans, loading, addIdea, updateIdea, deleteIdea, addPlan, updatePlan, deletePlan } = useExperiences()
+  const { ideas, plans, loading, addIdea, addIdeasBulk, updateIdea, deleteIdea, addPlan, updatePlan, deletePlan } = useExperiences()
   const [tab, setTab] = useState<'planos' | 'ideias' | 'historico'>('planos')
   const [modal, setModal] = useState<'idea' | 'plan' | null>(null)
   const [editingIdea, setEditingIdea] = useState<Experience | null>(null)
@@ -29,6 +80,10 @@ export default function FimDeSemana() {
   const [date, setDate] = useState(today())
   const [time, setTime] = useState('')
   const [saving, setSaving] = useState(false)
+  const [showImport, setShowImport] = useState(false)
+  const [importText, setImportText] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState('')
 
   const resetForm = () => { setTitle(''); setCategory('Lazer'); setCustomCategory(''); setDescription(''); setDate(today()); setTime(''); setEditingIdea(null); setEditingPlan(null); setSourceIdeaId(undefined); setModal(null) }
   const openIdea = (idea?: Experience) => {
@@ -65,6 +120,32 @@ export default function FimDeSemana() {
   const grouped = useMemo(() => upcoming.reduce<Record<string, WeekendPlan[]>>((acc, plan) => { (acc[plan.date] ||= []).push(plan); return acc }, {}), [upcoming])
   const dateLabel = (value: string) => format(new Date(`${value}T12:00:00`), "EEEE, dd 'de' MMMM", { locale: ptBR })
   const actionButton = (label: string, action: () => void) => <button className="btn btn-ghost btn-sm" onClick={action}>{label}</button>
+  const parsedIdeas = useMemo(() => parseIdeas(importText), [importText])
+  const importPreview = useMemo(() => {
+    const existing = new Set(ideas.map(idea => normalizeTitle(idea.title)))
+    const seen = new Set<string>()
+    const unique: ParsedIdea[] = []
+    let duplicates = 0
+    parsedIdeas.forEach(item => {
+      const key = normalizeTitle(item.title)
+      if (!key || existing.has(key) || seen.has(key)) { duplicates += 1; return }
+      seen.add(key); unique.push(item)
+    })
+    return { unique, duplicates }
+  }, [parsedIdeas, ideas])
+
+  const importIdeas = async () => {
+    if (!importPreview.unique.length) return
+    setImporting(true); setImportError('')
+    try {
+      await addIdeasBulk(importPreview.unique)
+      setImportText(''); setShowImport(false); setTab('ideias')
+      alert(`${importPreview.unique.length} ideias importadas com sucesso!`)
+    } catch (error) {
+      console.error(error)
+      setImportError('Não foi possível importar. Verifique sua conexão e as regras do Firebase e tente novamente.')
+    } finally { setImporting(false) }
+  }
 
   return <div className="page">
     <div style={{ marginBottom: 28 }}>
@@ -81,6 +162,7 @@ export default function FimDeSemana() {
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
       {([['planos', 'Meus planos'], ['ideias', 'Banco de ideias'], ['historico', 'Histórico']] as const).map(([key, label]) => <button key={key} className={`btn btn-sm ${tab === key ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setTab(key)}>{label}</button>)}
       <div style={{ flex: 1 }} />
+      <button className="btn btn-ghost btn-sm" onClick={() => { setShowImport(true); setImportError('') }}>⇧ Importar ideias</button>
       <button className="btn btn-ghost btn-sm" onClick={() => openIdea()}>+ Nova ideia</button>
       <button className="btn btn-primary btn-sm" onClick={() => openPlan()}>+ Planejar atividade</button>
     </div>
@@ -118,6 +200,26 @@ export default function FimDeSemana() {
         </div>)}
       </div>}
     </>}
+
+    {showImport && <Modal title="Importar ideias em massa" onClose={() => setShowImport(false)}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ color: 'var(--text-3)', fontSize: '.82rem', lineHeight: 1.5 }}>Cole uma lista com títulos e itens iniciados por hífen. Os títulos numerados serão usados para identificar as categorias automaticamente.</div>
+        <textarea autoFocus rows={12} value={importText} onChange={e => setImportText(e.target.value)} placeholder={'# 1. Esportes e atividades físicas\n- Academia\n- Futebol\n\n# 2. Aventura, natureza e ar livre\n- Trilha'} style={{ width: '100%', resize: 'vertical' }} />
+        <div className="card" style={{ padding: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}><strong>Prévia da importação</strong><span className="tag">{importPreview.unique.length} novas</span></div>
+          <div style={{ color: 'var(--text-3)', fontSize: '.78rem', marginBottom: 8 }}>{parsedIdeas.length} identificadas · {importPreview.duplicates} duplicadas ou já cadastradas serão ignoradas.</div>
+          {importPreview.unique.length > 0 ? <div style={{ maxHeight: 180, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {importPreview.unique.slice(0, 30).map((item, index) => <div key={`${item.title}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: '.8rem', borderTop: '1px solid var(--border)', paddingTop: 6 }}><span>{item.title}</span><span style={{ color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{item.category}</span></div>)}
+            {importPreview.unique.length > 30 && <div style={{ color: 'var(--text-3)', fontSize: '.75rem' }}>e mais {importPreview.unique.length - 30} ideias...</div>}
+          </div> : <div style={{ color: 'var(--text-3)', fontSize: '.8rem' }}>Nenhuma ideia nova identificada. Confira se cada atividade começa com hífen (-).</div>}
+        </div>
+        {importError && <div style={{ color: 'var(--red)', fontSize: '.8rem' }}>{importError}</div>}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button className="btn btn-ghost" onClick={() => setShowImport(false)} disabled={importing}>Fechar</button>
+          <button className="btn btn-primary" onClick={importIdeas} disabled={!importPreview.unique.length || importing}>{importing ? 'Importando...' : `Importar ${importPreview.unique.length} ideias`}</button>
+        </div>
+      </div>
+    </Modal>}
 
     {modal && <Modal title={modal === 'idea' ? (editingIdea ? 'Editar ideia' : 'Nova ideia') : (editingPlan ? 'Editar planejamento' : 'Planejar atividade')} onClose={resetForm}>
       <form onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
