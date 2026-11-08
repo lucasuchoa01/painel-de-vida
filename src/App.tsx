@@ -8,6 +8,7 @@ import Direcao from './pages/Direcao'
 import Evolucao from './pages/Evolucao'
 import PaginaLivre from './pages/PaginaLivre'
 import Rotina from './pages/Rotina'
+import FimDeSemana from './pages/FimDeSemana'
 
 function PrivateRoutes() {
   const { user } = useAuth()
@@ -17,6 +18,7 @@ function PrivateRoutes() {
       <Routes>
         <Route path="/" element={<Hoje />} />
         <Route path="/rotina" element={<Rotina />} />
+        <Route path="/fim-de-semana" element={<FimDeSemana />} />
         <Route path="/limpar" element={<LimparCabeca />} />
         <Route path="/direcao" element={<Direcao />} />
         <Route path="/evolucao" element={<Evolucao />} />
