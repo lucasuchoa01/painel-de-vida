@@ -39,9 +39,20 @@ function categoryFromHeading(heading: string) {
   return 'Outros'
 }
 
-// Corrige visualmente categorias genéricas atribuídas pela primeira versão do importador.
-// Não altera os documentos existentes no Firebase.
+// A categoria salva pelo usuário é a fonte de verdade.
+// A classificação automática abaixo só é usada para registros antigos que
+// ainda tenham uma categoria genérica da primeira versão do importador.
 function displayCategory(idea: Experience) {
+  const savedCategory = (idea.category || '').trim()
+  const savedCategoryKey = normalizeTitle(savedCategory)
+  const canonicalCategory = categories.find(item => normalizeTitle(item) === savedCategoryKey)
+  if (canonicalCategory) return canonicalCategory
+
+  // Categorias genéricas antigas que podem ser corrigidas pela atividade.
+  // Categorias personalizadas (ex.: "Trilhas") são sempre preservadas.
+  const legacyGenericCategories = ['cultura', 'lazer', 'outros', 'esporte', 'social', 'aventura', 'viagem']
+  if (!legacyGenericCategories.includes(savedCategoryKey)) return savedCategory || 'Outros'
+
   const title = normalizeTitle(cleanDisplayTitle(idea.title))
   const exact: Record<string, string> = {
     'academia': 'Esportes e atividades físicas',
@@ -103,9 +114,7 @@ function displayCategory(idea: Experience) {
     'ler um livro': 'Programas tranquilos e individuais',
   }
   if (exact[title]) return exact[title]
-  // Mantém categorias próprias que já estejam entre as categorias atuais.
-  if (categories.includes(idea.category)) return idea.category
-  return idea.category || 'Outros'
+  return savedCategory || 'Outros'
 }
 
 function parseIdeas(text: string): ParsedIdea[] {
